@@ -21,7 +21,7 @@
 
 			.canvas-lord {
 				width: 100%;
-				max-width: 656px;
+				max-width: 960px;
 				margin: 0 auto;
 				&:focus-within canvas {
 					border-color: #bbf;
@@ -50,7 +50,7 @@
 				box-sizing: content-box;
 				display: block;
 				width: 100%;
-				max-width: 640px;
+				max-width: 960px;
 				margin: 0 auto;
 				padding: 5px;
 				border: 3px solid #ddd;
@@ -64,117 +64,12 @@
 	<body>
 		<canvas
 			id="ggj-2025-game"
-			width="640px"
-			height="360px"
+			width="960px"
+			height="540px"
 			tabindex="-1"
 		></canvas>
 
-		<script type="module">
-			import {
-				AssetManager,
-				Game,
-				Scene,
-				Entity,
-				Draw,
-			} from './js/canvas-lord/canvas-lord.js';
-			import { Vec2 } from './js/canvas-lord/util/math.js';
-
-			const ASSETS = {
-				MOLE_SKETCH_PNG: 'mole-sketch.png',
-			};
-
-			class Mole extends Entity {
-				inc = 0; // same as doing `this.inc = 0;` in `constructor(...)`
-
-				constructor(x, y, assetManager) {
-					super(x, y);
-					this.sprite = assetManager.sprites.get(
-						ASSETS.MOLE_SKETCH_PNG,
-					);
-				}
-
-				update(input) {
-					//
-				}
-
-				render(ctx) {
-					const { width, height } = this.sprite.image;
-
-					const scale = 0.5;
-					const originX = -width >> 1;
-					const originY = -height >> 1;
-					const shared = {
-						angle: Math.sin(this.inc++ / 30) * 20,
-						scaleX: scale,
-						scaleY: scale,
-						originX, // same as doing `originX: originX,`
-						originY,
-						offsetX: originX,
-						offsetY: originY,
-					};
-
-					const imageOptions = {
-						imageSrc: this.sprite.image,
-						...shared,
-					};
-					Draw.image(ctx, imageOptions, this.x, this.y);
-
-					ctx.lineWidth = 6;
-					const rectOptions = {
-						type: 'stroke',
-						color: 'blue',
-						...shared,
-					};
-					Draw.rect(ctx, rectOptions, this.x, this.y, width, height);
-
-					const radius = 3;
-					const circleOptions = {
-						type: 'fill',
-						color: 'black',
-						offsetX: -radius,
-						offsetY: -radius,
-					};
-					Draw.circle(ctx, circleOptions, this.x, this.y, radius);
-				}
-			}
-
-			let game;
-			const assetManager = new AssetManager('./img/');
-			assetManager.addImage(ASSETS.MOLE_SKETCH_PNG);
-			assetManager.onLoad(() => {
-				if (game) return;
-
-				game = new Game('ggj-2025-game', {
-					fps: 60,
-					gameLoopSettings: {
-						updateMode: 'always', // or set it to 'focus'
-						renderMode: 'onUpdate',
-					},
-				});
-				game.assetManager = assetManager;
-				game.backgroundColor = '#6c6d71';
-
-				const scene = new Scene(game);
-
-				const canvasSize = new Vec2(
-					game.canvas.width,
-					game.canvas.height,
-				);
-				const canvasCenter = canvasSize.scale(0.5);
-
-				const mole = new Mole(
-					canvasCenter.x,
-					canvasCenter.y,
-					assetManager,
-				);
-				scene.addEntity(mole);
-				scene.addRenderable(mole);
-
-				game.pushScene(scene);
-
-				game.render();
-			});
-			assetManager.loadAssets();
+		<script type="module" src="js/game.js">
 		</script>
 	</body>
 </html>
