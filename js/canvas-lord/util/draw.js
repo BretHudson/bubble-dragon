@@ -1,37 +1,29 @@
 // TODO(bret): Rounded rectangle https://stackoverflow.com/questions/1255512/how-to-draw-a-rounded-rectangle-on-html-canvas
 export const drawable = {
-	angle: 0,
-	scaleX: 1,
-	scaleY: 1,
-	originX: 0,
-	originY: 0,
-	offsetX: 0,
-	offsetY: 0,
+    angle: 0,
+    scaleX: 1,
+    scaleY: 1,
+    originX: 0,
+    originY: 0,
+    offsetX: 0,
+    offsetY: 0,
 };
 const moveCanvas = (callback) => {
-	return (ctx, options, x, y, ...args) => {
-		const {
-			originX = 0,
-			originY = 0,
-			angle = 0,
-			scaleX = 1,
-			scaleY = 1,
-			offsetX = 0,
-			offsetY = 0,
-		} = Object.assign({}, drawable, options);
-		ctx.save();
-		ctx.translate(x, y);
-		ctx.scale(scaleX, scaleY);
-		ctx.translate(offsetX, offsetY);
-		if (angle !== 0) {
-			ctx.translate(-originX, -originY);
-			ctx.rotate((angle / 180) * Math.PI);
-			ctx.translate(originX, originY);
-		}
-		ctx.translate(-x, -y);
-		callback(ctx, options, x, y, ...args);
-		ctx.restore();
-	};
+    return (ctx, options, x, y, ...args) => {
+        const { offsetX = 0, offsetY = 0, angle = 0, originX = 0, originY = 0, scaleX = 1, scaleY = 1, } = Object.assign({}, drawable, options);
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.scale(scaleX, scaleY);
+        ctx.translate(offsetX, offsetY);
+        if (angle !== 0) {
+            ctx.translate(originX, originY);
+            ctx.rotate((angle / 180) * Math.PI);
+            ctx.translate(-originX, -originY);
+        }
+        ctx.translate(-x, -y);
+        callback(ctx, options, x, y, ...args);
+        ctx.restore();
+    };
 };
 export const Draw = {
 	text: moveCanvas((ctx, options, x, y, text) => {
