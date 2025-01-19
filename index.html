@@ -83,14 +83,17 @@
 				MOLE_SKETCH_PNG: 'mole-sketch.png',
 			};
 
-			class Mole extends Entity {
-				inc = 0; // same as doing `this.inc = 0;` in `constructor(...)`
+			const measure_text = (ctx, text, font) => {
+				ctx.font = font;
+				let metrics = ctx.measureText(text);
+				let t_height = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent;
+				return [metrics.width, t_height];
+			};
 
-				constructor(x, y, assetManager) {
+			class FPSGraph extends Entity {
+				constructor(x, y, graphSize) {
 					super(x, y);
-					this.sprite = assetManager.sprites.get(
-						ASSETS.MOLE_SKETCH_PNG,
-					);
+					this.graphSize = graphSize;
 				}
 
 				update(input) {
@@ -98,43 +101,70 @@
 				}
 
 				render(ctx) {
-					const { width, height } = this.sprite.image;
+					const game = this.scene.engine;
+					let { width, height } = game.canvas;
+					const frame_arr = game.recentFrames;
 
-					const scale = 0.5;
-					const originX = -width >> 1;
-					const originY = -height >> 1;
-					const shared = {
-						angle: Math.sin(this.inc++ / 30) * 20,
-						scaleX: scale,
-						scaleY: scale,
-						originX, // same as doing `originX: originX,`
-						originY,
-						offsetX: originX,
-						offsetY: originY,
-					};
+					let min_val = Number.MAX_VALUE;
+					let max_val = Number.MIN_VALUE;
+					let sum_val = 0;
 
-					const imageOptions = {
-						imageSrc: this.sprite.image,
-						...shared,
-					};
-					Draw.image(ctx, imageOptions, this.x, this.y);
+					for (let frame of frame_arr) {
+						max_val = Math.max(max_val, frame);
+						min_val = Math.min(min_val, frame);
+						sum_val += frame;
+					}
+					let avg_val = sum_val / frame_arr.length;
+					let range = max_val - min_val;
 
-					ctx.lineWidth = 6;
-					const rectOptions = {
-						type: 'stroke',
-						color: 'blue',
-						...shared,
-					};
-					Draw.rect(ctx, rectOptions, this.x, this.y, width, height);
+					let graph_size = 65;
+					let pad_size = 2;
+					let graph_pos = {x: this.x, y: this.y};
+					let graph_x_max = this.graphSize - pad_size;
+					let graph_y_max = this.graphSize - pad_size;
+					Draw.rect(ctx, {type: 'fill', color: '#A0A0A0'}, graph_pos.x, graph_pos.y, this.graphSize, this.graphSize);
 
-					const radius = 3;
-					const circleOptions = {
-						type: 'fill',
-						color: 'black',
-						offsetX: -radius,
-						offsetY: -radius,
-					};
-					Draw.circle(ctx, circleOptions, this.x, this.y, radius);
+					let avg_fps_text = 'avg: ' + avg_val.toFixed(2) + ' ms';
+					let font = '8px monospace';
+					let [tw, th] = measure_text(ctx, avg_fps_text, font);
+					let line_y = graph_pos.y + this.graphSize + pad_size;
+					Draw.text(ctx,
+						{type: 'fill', font: font, color: '#000000'},
+						graph_pos.x + this.graphSize - tw - pad_size,
+						line_y + th,
+						avg_fps_text
+					); line_y += th + pad_size;
+
+					let min_fps_text = 'min: ' + min_val.toFixed(2) + ' ms';
+					[tw, th] = measure_text(ctx, min_fps_text, font);
+					Draw.text(ctx,
+						{type: 'fill', font: font, color: '#000000'},
+						graph_pos.x + this.graphSize - tw - pad_size,
+						line_y + th,
+						min_fps_text
+					); line_y += th + pad_size;
+
+					let max_fps_text = 'max: ' + max_val.toFixed(2) + ' ms';
+					[tw, th] = measure_text(ctx, max_fps_text, font);
+					Draw.text(ctx,
+						{type: 'fill', font: font, color: '#000000'},
+						graph_pos.x + this.graphSize - tw - pad_size,
+						line_y + th,
+						max_fps_text
+					);
+					for (let i = 1; i < frame_arr.length; i++) {
+						const get_pos = (frame) => {
+							let x_off = i * (graph_x_max / frame_arr.length);
+							let y_off = (frame - min_val) * (graph_y_max / range);
+
+							let px = graph_pos.x + (pad_size / 2) + x_off;
+							let py = graph_pos.y + this.graphSize - y_off - (pad_size / 2);
+							return [px, py];
+						};
+						let [lx, ly] = get_pos(frame_arr[i-1]);
+						let [cx, cy] = get_pos(frame_arr[i]);
+						Draw.line(ctx, {}, lx, ly, cx, cy);
+					}
 				}
 			}
 
@@ -162,13 +192,9 @@
 				);
 				const canvasCenter = canvasSize.scale(0.5);
 
-				const mole = new Mole(
-					canvasCenter.x,
-					canvasCenter.y,
-					assetManager,
-				);
-				scene.addEntity(mole);
-				scene.addRenderable(mole);
+				const test = new FPSGraph(game.width - 65, 0, 65);
+				scene.addEntity(test);
+				scene.addRenderable(test);
 
 				game.pushScene(scene);
 

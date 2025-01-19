@@ -34,6 +34,24 @@ const moveCanvas = (callback) => {
 	};
 };
 export const Draw = {
+	text: moveCanvas((ctx, options, x, y, text) => {
+		switch (options.type) {
+			case 'fill':
+				{
+					ctx.fillStyle = options.color;
+					ctx.font = options.font;
+					ctx.fillText(text, x, y);
+				}
+			break;
+			case 'stroke':
+				{
+					ctx.strokeStyle = options.color;
+					ctx.font = options.font;
+					ctx.strokeText(text, x, y);
+				}
+			break;
+		}
+	}),
 	circle: moveCanvas((ctx, circle, x, y, radius) => {
 		ctx.translate(0.5, 0.5);
 		ctx.beginPath();
@@ -63,7 +81,6 @@ export const Draw = {
 		ctx.stroke();
 	}),
 	rect: moveCanvas((ctx, rect, x, y, w, h) => {
-		ctx.translate(0.5, 0.5);
 		const args = [x, y, w, h];
 		switch (rect.type) {
 			case 'fill':

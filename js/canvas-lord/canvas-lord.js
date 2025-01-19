@@ -287,6 +287,7 @@ export class Game {
             console.error(`Context was not able to be created from canvas "#${id}"`);
             return;
         }
+        ctx.lineCap = 'square';
         this.canvas = canvas;
         this.ctx = ctx;
         this.wrapper = document.createElement('div');
