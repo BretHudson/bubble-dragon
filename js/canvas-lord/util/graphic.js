@@ -1,4 +1,4 @@
-import { Draw } from './draw.js';
+import { moveCanvas, Draw } from './draw.js';
 import { Random } from './random.js';
 const tempCanvas = document.createElement('canvas');
 export class Graphic {
@@ -15,7 +15,7 @@ export class Graphic {
     scrollX = 1;
     scrollY = 1;
     alpha = 1;
-    entity;
+    parent;
     // TODO(bret): What should get scale() return??
     set scale(value) {
         this.scaleX = this.scaleY = value;
@@ -33,6 +33,53 @@ export class Graphic {
     }
     update(input) { }
     render(ctx, camera) { }
+}
+export class GraphicList extends Graphic {
+    graphics;
+    constructor(x = 0, y = 0) {
+        super(x, y);
+        this.graphics = [];
+    }
+    centerOrigin() {
+        // TODO(bret): what should this actually do?
+        this.graphics.forEach((graphic) => graphic.centerOrigin());
+    }
+    add(graphic) {
+        if (this.has(graphic))
+            return;
+        graphic.parent = this;
+        this.graphics.push(graphic);
+    }
+    has(graphic) {
+        const index = this.graphics.indexOf(graphic);
+        return index > -1;
+    }
+    remove(graphic) {
+        if (!this.has(graphic))
+            return;
+        const index = this.graphics.indexOf(graphic);
+        graphic.parent = undefined;
+        this.graphics.splice(index, 1);
+    }
+    update(input) {
+        this.graphics.forEach((graphic) => graphic.update(input));
+    }
+    render(ctx, camera) {
+        // TODO(bret): Set up transformations here!
+        this.scrollX = this.scrollY = 0;
+        const r = 3;
+        const preX = this.x;
+        const preY = this.y;
+        const x = this.x - camera.x * this.scrollX + (this.parent?.x ?? 0);
+        const y = this.y - camera.y * this.scrollY + (this.parent?.y ?? 0);
+        this.x = x;
+        this.y = y;
+        moveCanvas(() => {
+            this.graphics.forEach((graphic) => graphic.render(ctx, camera));
+        })(ctx, this, x, y);
+        this.x = preX;
+        this.y = preY;
+    }
 }
 const textCanvas = document.createElement('canvas');
 const textCtx = textCanvas.getContext('2d');
@@ -67,8 +114,8 @@ export class Text extends Graphic {
         textCtx.restore();
     }
     render(ctx, camera) {
-        const x = this.x - camera.x * this.scrollX + (this.entity?.x ?? 0);
-        const y = this.y - camera.y * this.scrollY + (this.entity?.y ?? 0);
+        const x = this.x - camera.x * this.scrollX + (this.parent?.x ?? 0);
+        const y = this.y - camera.y * this.scrollY + (this.parent?.y ?? 0);
         Draw.text(ctx, this, x, y, this.str);
     }
 }
@@ -83,6 +130,8 @@ export class Sprite extends Graphic {
     sourceY = 0;
     sourceW;
     sourceH;
+    color;
+    blend;
     get width() {
         return this.imageSrc.width;
     }
@@ -145,8 +194,8 @@ export class Sprite extends Graphic {
     }
     render(ctx, camera) {
         const { sourceX, sourceY, sourceW = this.width, sourceH = this.height, } = this;
-        const x = this.x - camera.x * this.scrollX + (this.entity?.x ?? 0);
-        const y = this.y - camera.y * this.scrollY + (this.entity?.y ?? 0);
+        const x = this.x - camera.x * this.scrollX + (this.parent?.x ?? 0);
+        const y = this.y - camera.y * this.scrollY + (this.parent?.y ?? 0);
         Draw.image(ctx, this, x, y, sourceX, sourceY, sourceW, sourceH);
     }
 }
@@ -157,6 +206,8 @@ export class NineSlice extends Graphic {
     height;
     tileW;
     tileH;
+    color;
+    blend;
     get imageSrc() {
         if (!this.asset.image)
             throw new Error("asset.image hasn't loaded yet");
@@ -417,8 +468,8 @@ export class Emitter extends Graphic {
         });
     }
     render(ctx, camera) {
-        const x = this.x - camera.x * this.scrollX + (this.entity?.x ?? 0);
-        const y = this.y - camera.y * this.scrollY + (this.entity?.y ?? 0);
+        const x = this.x - camera.x * this.scrollX + (this.parent?.x ?? 0);
+        const y = this.y - camera.y * this.scrollY + (this.parent?.y ?? 0);
         const { image } = this.asset;
         if (!image)
             throw new Error();
@@ -437,6 +488,7 @@ export class Emitter extends Graphic {
                     const { start, end } = particle.type.alpha;
                     this.alpha = Math.lerp(start, end, particle.t);
                 }
+                // TODO(bret): Draw.image now supports blending colors, might wanna switch this over!
                 if (particle.type.color) {
                     const { samples } = particle.type.color;
                     // TODO(bret): we'll never hit 1.0 :(
