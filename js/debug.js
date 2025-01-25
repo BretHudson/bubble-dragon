@@ -13,6 +13,21 @@ const types = {
 	showCamera: 'checkbox',
 	showHitboxes: 'checkbox',
 	seed: 'checkbox',
+	cameraInner: 'number',
+	cameraOuter: 'number',
+	cameraSpeed: 'number',
+};
+
+const values = {
+	cameraInner: { min: 0, max: 500, step: 1 },
+	cameraOuter: { min: 0, max: 500, step: 1 },
+	cameraSpeed: { min: 0, max: 100, step: 0.1 },
+};
+
+const saveSettings = () => {
+	const json = JSON.stringify(settings);
+	localStorage.setItem('settings', json);
+	console.log('saved', json);
 };
 
 const camelToWords = (name) => {
@@ -23,19 +38,20 @@ const camelToWords = (name) => {
 	return str.charAt(0).toUpperCase() + str.slice(1);
 };
 
-const _createInput = (type, labelText, defaultValue, callback) => {
+const _createInput = (type, name, defaultValue, callback) => {
 	const wrapper = document.createElement('div');
 	wrapper.classList.add('input');
 
 	const label = document.createElement('label');
+	const labelText = titleOverrides[name] ?? camelToWords(name);
 	label.textContent = labelText;
 	const input = document.createElement('input');
 	input.type = type;
+	input.name = name;
 
 	const _callback = (...args) => {
 		callback(...args);
-		const json = JSON.stringify(settings);
-		localStorage.setItem('settings', json);
+		saveSettings();
 	};
 
 	switch (type) {
@@ -45,21 +61,40 @@ const _createInput = (type, labelText, defaultValue, callback) => {
 			});
 			input.checked = defaultValue;
 			break;
+		case 'number':
+			input.addEventListener('change', (e) => {
+				_callback(e.target.value);
+			});
+			input.value = defaultValue;
+			break;
 		default:
 			throw new Error(`"${type}" is not a valid input type`);
 	}
 
 	wrapper.append(label, input);
 	inspector.append(wrapper);
+
+	return input;
 };
 
 const createCheckbox = (name) => {
-	const labelText = titleOverrides[name] ?? camelToWords(name);
 	const defaultValue = Boolean(settings[name]);
+	const callback = (v) => {
+		settings[name] = callbacks[name]?.(+v) ?? +v;
+	};
+	_createInput.bind(0, 'checkbox')(name, defaultValue, callback);
+};
+
+const createNumber = (name) => {
+	const defaultValue = settings[name];
 	const callback = (v) => {
 		settings[name] = callbacks[name]?.(v) ?? v;
 	};
-	_createInput.bind(0, 'checkbox')(labelText, defaultValue, callback);
+	const input = _createInput.bind(0, 'number')(name, defaultValue, callback);
+	const { min, max, step } = values[name];
+	input.min = min;
+	input.max = max;
+	input.step = step;
 };
 
 const createInput = (name) => {
@@ -68,13 +103,16 @@ const createInput = (name) => {
 		case 'checkbox':
 			createCheckbox(name);
 			break;
+		case 'number':
+			createNumber(name);
+			break;
 		default: {
 			throw new Error(`createInput() | "${type}" (${name}) is invalid`);
 		}
 	}
 };
 
-export const initDebug = (game, _settings) => {
+export const initDebug = (game, _settings, defaultSettings) => {
 	const { canvas } = game;
 
 	settings = _settings;
@@ -84,4 +122,29 @@ export const initDebug = (game, _settings) => {
 	canvas.after(inspector);
 
 	Object.keys(_settings).forEach(createInput);
+
+	const reset = () => {
+		Object.entries(defaultSettings).forEach(([k, v]) => {
+			const input = document.querySelector(`[name=${k}]`);
+			switch (input.type) {
+				case 'checkbox':
+					input.checked = Boolean(v);
+					break;
+				case 'number':
+					input.value = v;
+					break;
+				default:
+					input.value = v;
+					break;
+			}
+			settings[k] = v;
+		});
+		saveSettings();
+	};
+	const resetButton = document.createElement('button');
+	resetButton.textContent = 'Reset';
+	resetButton.addEventListener('click', () => {
+		reset();
+	});
+	inspector.append(resetButton);
 };

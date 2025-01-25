@@ -14,6 +14,9 @@ const defaultSettings = {
 	showCamera: false,
 	showHitboxes: false,
 	seed: undefined,
+	cameraInner: 75,
+	cameraOuter: 125,
+	cameraSpeed: 20,
 };
 const settings = Object.assign(
 	{},
@@ -157,16 +160,26 @@ class Grimey extends Character {
 class CameraManager extends Entity {
 	innerDist = 75;
 	outerDist = 125;
+	speed = 20;
 	dir = 1;
 
 	constructor(follow) {
 		super(0, 0);
 		this.follow = follow;
 		this.depth = -Infinity;
+		this.updateSettings();
+	}
+
+	updateSettings() {
 		this.visible = settings.showCamera;
+		this.innerDist = +settings.cameraInner;
+		this.outerDist = +settings.cameraOuter;
+		this.speed = +settings.cameraSpeed;
 	}
 
 	update(input) {
+		this.updateSettings();
+
 		if (settings.showCamera && input.keyPressed('q')) {
 			this.dir = -1;
 		}
@@ -186,15 +199,13 @@ class CameraManager extends Entity {
 		if (Math.sign(this.follow.x - followX) === dir) {
 			const targetX = this.follow.x + innerDist * dir;
 			const dist = targetX - x;
-			const spd = Math.min(Math.abs(dist), 20.0);
+			const spd = Math.min(Math.abs(dist), this.speed);
 			this.x += Math.sign(dist) * spd;
 		}
 
 		if (Math.sign(this.follow.x - toggleX) == -dir) {
 			this.dir = Math.sign(this.follow.x - toggleX);
 		}
-
-		this.visible = settings.showCamera;
 
 		this.scene.camera.x = this.x - this.scene.engine.canvas.width * 0.5;
 
@@ -318,6 +329,6 @@ assetManager.onLoad(() => {
 	game.pushScene(scene);
 	game.render();
 
-	initDebug(game, settings);
+	initDebug(game, settings, defaultSettings);
 });
 assetManager.loadAssets();
