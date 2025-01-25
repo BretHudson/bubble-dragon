@@ -14,6 +14,9 @@ const defaultSettings = {
 	showCamera: false,
 	showHitboxes: false,
 	seed: undefined,
+	cameraInner: 75,
+	cameraOuter: 125,
+	cameraSpeed: 20,
 };
 const settings = Object.assign(
 	{},
@@ -157,47 +160,81 @@ class Grimey extends Character {
 class CameraManager extends Entity {
 	innerDist = 75;
 	outerDist = 125;
+	speed = 20;
 	dir = 1;
 
 	constructor(follow) {
 		super(0, 0);
 		this.follow = follow;
 		this.depth = -Infinity;
+		this.updateSettings();
+	}
+
+	updateSettings() {
 		this.visible = settings.showCamera;
+		this.innerDist = +settings.cameraInner;
+		this.outerDist = +settings.cameraOuter;
+		this.speed = +settings.cameraSpeed;
 	}
 
 	update(input) {
-		const newX = this.follow.x - this.scene.engine.canvas.width * 0.5;
-		this.scene.camera.x = newX;
+		this.updateSettings();
+
+		if (settings.showCamera && input.keyPressed('q')) {
+			this.dir = -1;
+		}
+		if (settings.showCamera && input.keyPressed('e')) {
+			this.dir = 1;
+		}
+
+		const { x, innerDist, outerDist, dir } = this;
+		let forceX = x + innerDist * dir;
+		let toggleX = x - outerDist * dir;
+		let followX = x - innerDist * dir;
+		if (dir == 1) {
+			--forceX;
+			--toggleX;
+		}
+
+		if (Math.sign(this.follow.x - followX) === dir) {
+			const targetX = this.follow.x + innerDist * dir;
+			const dist = targetX - x;
+			const spd = Math.min(Math.abs(dist), this.speed);
+			this.x += Math.sign(dist) * spd;
+		}
+
+		if (Math.sign(this.follow.x - toggleX) == -dir) {
+			this.dir = Math.sign(this.follow.x - toggleX);
+		}
+
+		this.scene.camera.x = this.x - this.scene.engine.canvas.width * 0.5;
 
 		if (this.scene.camera.x < 0) {
 			this.scene.camera.x = 0;
 		}
-
-		this.visible = settings.showCamera;
 	}
 
-	render(ctx, camera) {
+	render(ctx) {
 		if (!this.visible) return;
 
 		ctx.save();
 		const canvasW = ctx.canvas.width;
 		const canvasH = ctx.canvas.height;
 		const canvasCenterX = canvasW >> 1;
-		const canvasCenterY = canvasH >> 1;
 		ctx.lineWidth = 2;
 		ctx.strokeStyle = 'white';
-		const drawLine = (w, h) => {
-			const x1 = canvasCenterX - w;
-			const x2 = canvasCenterX + w;
-			const y1 = canvasCenterY - h;
-			const y2 = canvasCenterY + h;
-			Draw.line(ctx, { color: 'white' }, x1, y1, x2, y2);
+		const drawPair = (xDist, yDist) => {
+			const x1 = canvasCenterX - xDist;
+			const x2 = canvasCenterX + xDist;
+			const y1 = 0 + yDist;
+			const y2 = canvasH - yDist;
+			Draw.line(ctx, { color: 'white' }, x1, y1, x1, y2);
+			Draw.line(ctx, { color: 'white' }, x2, y1, x2, y2);
 		};
 
-		const size = 20;
-		drawLine(size, 0);
-		drawLine(0, size);
+		drawPair(this.innerDist, 60);
+		ctx.setLineDash([7, 7]);
+		drawPair(this.outerDist, 90);
 
 		ctx.restore();
 	}
@@ -292,6 +329,6 @@ assetManager.onLoad(() => {
 	game.pushScene(scene);
 	game.render();
 
-	initDebug(game, settings);
+	initDebug(game, settings, defaultSettings);
 });
 assetManager.loadAssets();
