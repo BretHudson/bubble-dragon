@@ -26,10 +26,10 @@ const settings = Object.assign(
 
 // delete old keys
 Object.keys(settings).forEach((key) => {
-	if (!(key in defaultSettings)) {
-		delete settings[key];
-	}
-});
+		if (!(key in defaultSettings)) {
+			delete settings[key];
+		}
+	});
 
 const ASSETS = {
 	MOLE_SKETCH_PNG: 'mole-sketch.png',
@@ -37,6 +37,8 @@ const ASSETS = {
 	BG_PNG: 'bg.png',
 	BG2_PNG: 'bg2.png',
 };
+
+const OFFSET_X = -532 * 0.125;
 
 class Background extends Entity {
 	constructor(asset_name, canvas_height, assetManager) {
@@ -65,6 +67,32 @@ class Background extends Entity {
 
 class Character extends Entity {
 	hitFlash = false;
+	invFrames = 0;
+	health = 8;
+
+	hurt(pts) {
+		if (this.invFrames > 0) {
+			return;
+		}
+
+		console.log("Ouch!");
+		if (this.health <= pts) {
+			this.health = 0;
+		} else {
+			this.health -= pts;
+		}
+		this.invFrames = 30;
+	}
+
+	update(input) {
+		super.update(input);
+
+		if (this.invFrames > 0) {
+			this.invFrames -= 1;
+		}
+
+		this.hitFlash = this.invFrames % 8 >= 4;
+	}
 
 	render(ctx, camera) {
 		this.graphic.color = this.hitFlash ? 'white' : undefined;
@@ -73,6 +101,14 @@ class Character extends Entity {
 }
 
 class Mole extends Character {
+	collider = {
+		type: 'rect',
+		x: -532 * 0.125,
+		y:  546 * 0.0625,
+		w:  532 * 0.25,
+		h:  546 * 0.05,
+	};
+
 	constructor(x, y, assetManager) {
 		super(x, y);
 		const asset = assetManager.sprites.get(ASSETS.MOLE_SKETCH_NO_BG_PNG);
@@ -99,36 +135,74 @@ class Mole extends Character {
 		super.update(input);
 
 		const speed = 10.0;
+		var nx = this.x;
+		var ny = this.y;
 		if (input.keyCheck('a')) {
-			this.x -= speed;
+			nx -= speed;
 		} else if (input.keyCheck('d')) {
-			this.x += speed;
+			nx += speed;
 		}
 
 		if (input.keyCheck('w')) {
-			this.y -= speed;
+			ny -= speed;
 
-			if (this.y < 150.0) {
-				this.y = 150.0;
-			} else {
-				this.x -= speed * 0.5;
+			if (ny < 150.0) {
+				ny = 150.0;
 			}
 		} else if (input.keyCheck('s')) {
-			this.y += speed;
+			ny += speed;
 
-			if (this.y > 400.0) {
-				this.y = 400.0;
-			} else {
-				this.x += speed * 0.5;
+			if (ny > 400.0) {
+				ny = 400.0;
 			}
 		}
-		this.depth = -this.y;
 
-		this.hitFlash = input.keyCheck(' ');
+		if (!this.collide(nx, this.y)) {
+			this.x = nx;
+		}
+
+		if (!this.collide(this.x, ny)) {
+			this.y = ny;
+		}
+
+		this.depth = -this.y;
+	}
+
+	render(ctx, camera) {
+		this.collider.x = (this.y * 0.25) + OFFSET_X;
+		this.graphic.x  = this.y * 0.25;
+
+		super.render(ctx, camera);
+
+        const rectOptions = {
+            type: 'fill',
+            angle: 0.0,
+            scaleX: 1.0,
+            scaleY: 1.0,
+            originX: 0.0,
+            originY: 0.0,
+            offsetX: 0.0,
+            offsetY: 0.0,
+        };
+
+		rectOptions.color = 'red';
+		Draw.rect(ctx, rectOptions, 20.0, 20.0, (this.health / 10) * 200.0, 32.0);
+		rectOptions.color = 'black';
+		Draw.rect(ctx, rectOptions, 20.0 + ((this.health / 10) * 200.0), 20.0, (1.0 - (this.health / 10)) * 200.0, 32.0);
+
+		// Draw.rect(ctx, rectOptions, (this.x + this.collider.x) - camera.x, (this.y + this.collider.y) - camera.y, this.collider.w, this.collider.h);
 	}
 }
 
 class Grimey extends Character {
+	collider = {
+		type: 'rect',
+		x: -532 * 0.125,
+		y:  546 * 0.0625,
+		w:  532 * 0.25,
+		h:  546 * 0.0625,
+	};
+
 	constructor(x, y, assetManager) {
 		super(x, y);
 		const asset = assetManager.sprites.get(ASSETS.MOLE_SKETCH_PNG);
@@ -154,6 +228,39 @@ class Grimey extends Character {
 	update(input) {
 		super.update(input);
 		this.depth = -this.y;
+
+		const px = this.scene.player.x - this.scene.player.y*0.25;
+		const py = this.scene.player.y;
+		const speed = 0.5;
+
+		var nx = this.x;
+		var ny = this.y;
+		if (nx > px) {
+			nx -= speed;
+		} else if (nx < px) {
+			nx += speed;
+		}
+
+		if (ny > py) {
+			ny -= speed;
+		} else if (ny < py) {
+			ny += speed;
+		}
+
+		if (!this.collide(nx, this.y)) {
+			this.x = nx;
+		}
+
+		if (!this.collide(this.x, ny)) {
+			this.y = ny;
+		}
+	}
+
+	render(ctx, camera) {
+		this.collider.x = (this.y * 0.25) + OFFSET_X;
+		this.graphic.x = this.y * 0.25;
+
+		super.render(ctx, camera);
 	}
 }
 
@@ -255,9 +362,9 @@ class Level extends Scene {
 		const bg2 = new Background(ASSETS.BG2_PNG, canvasSize.y, assetManager);
 		const bg = new Background(ASSETS.BG_PNG, canvasSize.y, assetManager);
 		[bg, bg2, mole, cameraManager].forEach((e) => {
-			this.addEntity(e);
-			this.addRenderable(e);
-		});
+				this.addEntity(e);
+				this.addRenderable(e);
+			});
 
 		const random = new Random(settings.seed);
 		for (var i = 0; i < 15; i++) {
@@ -279,9 +386,9 @@ class Level extends Scene {
 
 		if (settings.showHitboxes) {
 			this.entities.inScene.forEach((e) => {
-				if (!e.collider) return;
-				switch (e.collider.type) {
-					case 'rect':
+					if (!e.collider) return;
+					switch (e.collider.type) {
+						case 'rect':
 						Draw.rect(
 							ctx,
 							{ type: 'stroke', color: 'red' },
@@ -291,10 +398,10 @@ class Level extends Scene {
 							e.collider.h,
 						);
 						break;
-					default:
+						default:
 						console.warn('not supported');
-				}
-			});
+					}
+				});
 		}
 	}
 }
@@ -302,15 +409,15 @@ class Level extends Scene {
 let game;
 const assetManager = new AssetManager('./img/');
 Object.values(ASSETS).forEach((asset) => {
-	switch (true) {
-		case asset.endsWith('.png'):
+		switch (true) {
+			case asset.endsWith('.png'):
 			assetManager.addImage(asset);
 			break;
-		case asset.endsWith('.mp3'):
+			case asset.endsWith('.mp3'):
 			assetManager.addAudio(asset);
 			break;
-	}
-});
+		}
+	});
 assetManager.onLoad(() => {
 	if (game) return;
 
@@ -325,7 +432,6 @@ assetManager.onLoad(() => {
 	game.backgroundColor = '#6c6d71';
 
 	const scene = new Level(game);
-
 	game.pushScene(scene);
 	game.render();
 
