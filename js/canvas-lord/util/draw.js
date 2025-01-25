@@ -136,7 +136,8 @@ export const Draw = {
             }
         }
         tempCtx.restore();
-        ctx.drawImage(tempCanvas, 0, 0);
+        // ctx.drawImage(tempCanvas, 0, 0);
+		ctx.drawImage(imageSrc, x, y, _width, _height, drawX, drawY, _width, _height);
     }),
     // TODO(bret): This breaks if the width is too small :(
     // TODO(bret): Condense some of this down
