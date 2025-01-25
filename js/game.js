@@ -8,8 +8,25 @@ import {
 import { Vec2 } from './canvas-lord/util/math.js';
 import { Random } from './canvas-lord/util/random.js';
 import { Sprite } from './canvas-lord/util/graphic.js';
+import { initDebug } from './debug.js';
 
-let inDebug = JSON.parse(localStorage.getItem('debug'));
+const defaultSettings = {
+	showCamera: false,
+	showHitboxes: false,
+	seed: undefined,
+};
+const settings = Object.assign(
+	{},
+	defaultSettings,
+	JSON.parse(localStorage.getItem('settings')) ?? {},
+);
+
+// delete old keys
+Object.keys(settings).forEach((key) => {
+	if (!(key in defaultSettings)) {
+		delete settings[key];
+	}
+});
 
 const ASSETS = {
 	MOLE_SKETCH_PNG: 'mole-sketch.png',
@@ -57,9 +74,22 @@ class Mole extends Character {
 		super(x, y);
 		const asset = assetManager.sprites.get(ASSETS.MOLE_SKETCH_NO_BG_PNG);
 
+		const scale = 0.25;
+
+		const w = asset.width * scale;
+		const h = asset.height * scale;
+
+		this.collider = {
+			type: 'rect',
+			x: -w >> 1,
+			y: -h >> 1,
+			w,
+			h,
+		};
+
 		this.graphic = new Sprite(asset);
 		this.graphic.centerOrigin();
-		this.graphic.scale = 0.25;
+		this.graphic.scale = scale;
 	}
 
 	update(input) {
@@ -100,9 +130,22 @@ class Grimey extends Character {
 		super(x, y);
 		const asset = assetManager.sprites.get(ASSETS.MOLE_SKETCH_PNG);
 
+		const scale = 0.25;
+
+		const w = asset.width * scale;
+		const h = asset.height * scale;
+
+		this.collider = {
+			type: 'rect',
+			x: -w >> 1,
+			y: -h >> 1,
+			w,
+			h,
+		};
+
 		this.graphic = new Sprite(asset);
 		this.graphic.centerOrigin();
-		this.graphic.scale = 0.25;
+		this.graphic.scale = scale;
 	}
 
 	update(input) {
@@ -120,7 +163,7 @@ class CameraManager extends Entity {
 		super(0, 0);
 		this.follow = follow;
 		this.depth = -Infinity;
-		this.visible = inDebug;
+		this.visible = settings.showCamera;
 	}
 
 	update(input) {
@@ -131,7 +174,7 @@ class CameraManager extends Entity {
 			this.scene.camera.x = 0;
 		}
 
-		this.visible = inDebug;
+		this.visible = settings.showCamera;
 	}
 
 	render(ctx, camera) {
@@ -179,7 +222,7 @@ class Level extends Scene {
 			this.addRenderable(e);
 		});
 
-		const random = new Random(inDebug ? 78493 : undefined);
+		const random = new Random(settings.seed);
 		for (var i = 0; i < 15; i++) {
 			const e = new Grimey(
 				random.float(8000),
@@ -189,6 +232,32 @@ class Level extends Scene {
 
 			this.addEntity(e);
 			this.addRenderable(e);
+		}
+	}
+
+	render(ctx) {
+		super.render(ctx);
+
+		const { camera } = this;
+
+		if (settings.showHitboxes) {
+			this.entities.inScene.forEach((e) => {
+				if (!e.collider) return;
+				switch (e.collider.type) {
+					case 'rect':
+						Draw.rect(
+							ctx,
+							{ type: 'stroke', color: 'red' },
+							e.x + e.collider.x - camera.x,
+							e.y + e.collider.y - camera.y,
+							e.collider.w,
+							e.collider.h,
+						);
+						break;
+					default:
+						console.warn('not supported');
+				}
+			});
 		}
 	}
 }
@@ -211,7 +280,7 @@ assetManager.onLoad(() => {
 	game = new Game('ggj-2025-game', {
 		fps: 60,
 		gameLoopSettings: {
-			updateMode: 'always', // or set it to 'focus'
+			updateMode: 'focus', // or set it to 'focus'
 			renderMode: 'onUpdate',
 		},
 	});
@@ -222,5 +291,7 @@ assetManager.onLoad(() => {
 
 	game.pushScene(scene);
 	game.render();
+
+	initDebug(game, settings);
 });
 assetManager.loadAssets();
