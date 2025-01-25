@@ -167,37 +167,63 @@ class CameraManager extends Entity {
 	}
 
 	update(input) {
-		const newX = this.follow.x - this.scene.engine.canvas.width * 0.5;
-		this.scene.camera.x = newX;
+		if (settings.showCamera && input.keyPressed('q')) {
+			this.dir = -1;
+		}
+		if (settings.showCamera && input.keyPressed('e')) {
+			this.dir = 1;
+		}
+
+		const { x, innerDist, outerDist, dir } = this;
+		let forceX = x + innerDist * dir;
+		let toggleX = x - outerDist * dir;
+		let followX = x - innerDist * dir;
+		if (dir == 1) {
+			--forceX;
+			--toggleX;
+		}
+
+		if (Math.sign(this.follow.x - followX) === dir) {
+			const targetX = this.follow.x + innerDist * dir;
+			const dist = targetX - x;
+			const spd = Math.min(Math.abs(dist), 20.0);
+			this.x += Math.sign(dist) * spd;
+		}
+
+		if (Math.sign(this.follow.x - toggleX) == -dir) {
+			this.dir = Math.sign(this.follow.x - toggleX);
+		}
+
+		this.visible = settings.showCamera;
+
+		this.scene.camera.x = this.x - this.scene.engine.canvas.width * 0.5;
 
 		if (this.scene.camera.x < 0) {
 			this.scene.camera.x = 0;
 		}
-
-		this.visible = settings.showCamera;
 	}
 
-	render(ctx, camera) {
+	render(ctx) {
 		if (!this.visible) return;
 
 		ctx.save();
 		const canvasW = ctx.canvas.width;
 		const canvasH = ctx.canvas.height;
 		const canvasCenterX = canvasW >> 1;
-		const canvasCenterY = canvasH >> 1;
 		ctx.lineWidth = 2;
 		ctx.strokeStyle = 'white';
-		const drawLine = (w, h) => {
-			const x1 = canvasCenterX - w;
-			const x2 = canvasCenterX + w;
-			const y1 = canvasCenterY - h;
-			const y2 = canvasCenterY + h;
-			Draw.line(ctx, { color: 'white' }, x1, y1, x2, y2);
+		const drawPair = (xDist, yDist) => {
+			const x1 = canvasCenterX - xDist;
+			const x2 = canvasCenterX + xDist;
+			const y1 = 0 + yDist;
+			const y2 = canvasH - yDist;
+			Draw.line(ctx, { color: 'white' }, x1, y1, x1, y2);
+			Draw.line(ctx, { color: 'white' }, x2, y1, x2, y2);
 		};
 
-		const size = 20;
-		drawLine(size, 0);
-		drawLine(0, size);
+		drawPair(this.innerDist, 60);
+		ctx.setLineDash([7, 7]);
+		drawPair(this.outerDist, 90);
 
 		ctx.restore();
 	}
