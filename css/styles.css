@@ -14,7 +14,7 @@ body {
 
 .canvas-lord {
 	width: 100%;
-	max-width: calc(960px + 16px);
+	max-width: calc(1280px + 16px);
 	margin: 0 auto;
 	&:focus-within canvas {
 		border-color: #bbf;
@@ -53,7 +53,7 @@ body {
 #cabinet {
 	--inset: 40px;
 	background: #67aac9;
-	width: 900px;
+	width: 1400px;
 	header {
 		background: #2c7596;
 		padding: 1.5rem;
@@ -149,7 +149,7 @@ canvas {
 	box-sizing: content-box;
 	display: block;
 	width: 100%;
-	max-width: 960px;
+	max-width: 1280px;
 	margin: 0 auto;
 	padding: 5px;
 	border: 3px solid #ddd;

@@ -36,7 +36,7 @@ const settings = Object.assign(
 
 const minY = 200;
 const maxY = 380;
-const centerY = (maxY - minY) / 2;
+const centerY = (maxY - minY) / 2 + minY;
 const random = new Random(settings.seed);
 
 var over = false;
@@ -280,6 +280,29 @@ class Character extends Entity {
 	}
 
 	render(ctx, camera) {
+		const drawX = this.x - camera.x;
+		const drawY = this.y - camera.y;
+
+		const r = 9;
+		const circleOptions = {
+			type: 'fill',
+			color: '#00000033',
+			radius: r,
+			scaleX: 2,
+		};
+		Draw.circle(ctx, circleOptions, drawX - r * 2, drawY - r, r);
+		Draw.circle(
+			ctx,
+			{
+				...circleOptions,
+				color: '#ffffff22',
+				type: 'stroke',
+			},
+			drawX - r * 2,
+			drawY - r,
+			r,
+		);
+
 		this.graphic.color = this.hitFlash ? 'white' : undefined;
 		super.render(ctx, camera);
 	}
@@ -463,18 +486,6 @@ class Player extends Character {
 		// this.graphic.x = -(this.y - minY);
 		this.graphic.x = this.flip ? -10 : 10;
 		this.graphic.scaleX = this.flip ? -1.0 : 1.0;
-
-		const drawX = this.x - camera.x;
-		const drawY = this.y - camera.y;
-
-		const r = 12;
-		const circleOptions = {
-			type: 'fill',
-			color: '#88888888',
-			radius: r,
-			scaleX: 2,
-		};
-		Draw.circle(ctx, circleOptions, drawX - r * 2, drawY - r, r);
 
 		super.render(ctx, camera);
 
@@ -789,7 +800,7 @@ class Level extends Scene {
 		const canvasSize = new Vec2(engine.canvas.width, engine.canvas.height);
 		const canvasCenter = canvasSize.scale(0.5);
 
-		const p = new Player(canvasCenter.x, 400.0, assetManager);
+		const p = new Player(canvasCenter.x, centerY, assetManager);
 		this.player = p;
 
 		const cameraManager = new CameraManager(this.player);
@@ -960,6 +971,8 @@ assetManager.onLoad(() => {
 
 	game.render();
 
-	initDebug(game, settings, defaultSettings);
+	if (window.debugEnabled) {
+		initDebug(game, settings, defaultSettings);
+	}
 });
 assetManager.loadAssets();
