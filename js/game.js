@@ -599,7 +599,7 @@ class Player extends Character {
 				this.hitbox = null;
 			}
 		} else {
-			const speed = 1.0;
+			const speed = settings.playerSpeed;
 			let moveVec = new Vec2(0, 0);
 
 			moveVec.x = +input.keyCheck(keysR) - +input.keyCheck(keysL);
@@ -950,11 +950,9 @@ class CameraManager extends Entity {
 	update(input) {
 		this.updateSettings();
 
-		if (settings.showCamera && input.keyPressed('q')) {
-			this.dir = -1;
-		}
-		if (settings.showCamera && input.keyPressed('e')) {
-			this.dir = 1;
+		if (input && settings.showCamera) {
+			if (input.keyPressed?.('q')) this.dir = -1;
+			if (input.keyPressed?.('e')) this.dir = 1;
 		}
 
 		const { x, innerDist, outerDist, dir } = this;
@@ -966,7 +964,7 @@ class CameraManager extends Entity {
 			--toggleX;
 		}
 
-		const realFollowX = this.follow.x - 50.0;
+		const realFollowX = this.follow.x;
 		if (Math.sign(realFollowX - followX) === dir) {
 			const targetX = realFollowX + innerDist * dir;
 			const dist = targetX - x;
@@ -1038,7 +1036,7 @@ class Skyscrapers extends Entity {
 			buildingW,
 			540,
 		);
-		this.depth = -1;
+		this.depth = DEPTH.SKYSCRAPERS;
 		this.graphic.centerOO();
 		this.y = 50.0;
 
@@ -1212,7 +1210,7 @@ class Level extends Scene {
 		const canvasSize = new Vec2(engine.canvas.width, engine.canvas.height);
 		const canvasCenter = canvasSize.scale(0.5);
 
-		const p = new Player(canvasCenter.x, 400.0, assetManager);
+		const p = new Player(canvasCenter.x, centerY, assetManager);
 		this.player = p;
 
 		const cameraManager = new CameraManager(this.player);
@@ -1234,6 +1232,7 @@ class Level extends Scene {
 					engine.canvas.width >> 1,
 					(engine.canvas.height >> 1) - 80,
 				);
+				entity.depth = DEPTH.BACKGROUND;
 				entity.graphic = new Sprite(sprite);
 				entity.graphic.scale = 0.5;
 				entity.graphic.centerOO();
@@ -1250,9 +1249,9 @@ class Level extends Scene {
 			this.addRenderable(skyscrapers);
 		}
 
-		const buildings = new Buildings();
-		this.addEntity(buildings);
-		this.addRenderable(buildings);
+		// const buildings = new Buildings();
+		// this.addEntity(buildings);
+		// this.addRenderable(buildings);
 
 		[...entities, tiles, p, cameraManager].forEach((e) => {
 			this.addEntity(e);
