@@ -133,7 +133,7 @@ export class Entity {
                 continue;
             if (!e.collidable || !e.collider)
                 continue;
-            if (tags.length && !tags.includes(e.collider.type))
+            if (tags.length && !tags.includes(e.collider.tag))
                 continue;
             if (this._collide(x, y, e)) {
                 collide.push(e);

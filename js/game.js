@@ -42,6 +42,11 @@ const random = new Random(settings.seed);
 
 var over = false;
 
+var screen_min = 0.0;
+var screen_max = Infinity;
+
+var boss_fight = false;
+
 // delete old keys
 Object.keys(settings).forEach((key) => {
 	if (!(key in defaultSettings)) {
@@ -60,6 +65,7 @@ await loadFont('Skullboy Mono', './fonts/ChevyRay - Skullboy Mono.ttf');
 const ASSETS = {
 	MRCLEAN_PNG: 'mr_clean.png',
 	BADGUY_PNG: 'badguy.png',
+	GRIMEBOSS_PNG: 'grimeboss.png',
 	BG_PNG: 'bg.png',
 	BG2_PNG: 'bg2.png',
 	BUBBLES2_PNG: 'bubbles2.png',
@@ -243,9 +249,33 @@ class CoolScreen extends Entity {
 		this.fade += 1.0 / 60.0;
 		if (this.fade > 1.0) {
 			this.fade = 1.0;
+
+			if (boss_fight) {
+				screen_min = this.scene.room_start;
+				screen_max = this.scene.room_start + 400.0;
+
+				const e = new Boss(
+					this.scene.room_start +
+						this.scene.engine.canvas.width * 0.5,
+					this.scene.engine.canvas.height * 0.5,
+					assetManager,
+				);
+				this.scene.addEntity(e);
+				this.scene.addRenderable(e);
+
+				// kill overlay
+				this.scene.removeRenderable(this);
+				this.scene.removeEntity(this);
+				this.scene = null;
+			}
 		}
 
-		this.bg.alpha = this.fade;
+		if (boss_fight) {
+			this.txt.alpha = this.bg.alpha =
+				Math.sin(this.fade * Math.PI) * 0.5 + 0.5;
+		} else {
+			this.txt.alpha = this.bg.alpha = this.fade;
+		}
 
 		this.visible = !settings.hideOverlay;
 	}
@@ -259,6 +289,9 @@ class Character extends Entity {
 	anim_state = 0;
 	hitbox = null;
 
+	dx = 0;
+	dy = 0;
+
 	flipOffset = 0;
 
 	constructor(x, y, asset, initialHealth) {
@@ -267,7 +300,6 @@ class Character extends Entity {
 		this.health = initialHealth;
 
 		const h = 80.0;
-
 		this.collider = {
 			type: 'rect',
 			tag: 'CHAR',
@@ -277,13 +309,14 @@ class Character extends Entity {
 			h: 20,
 		};
 
-		this.graphic = new AnimatedSprite(asset, 80, 80);
-		this.graphic.centerOO();
-		this.graphic.originY = 0;
-		this.graphic.offsetY = 0;
-		this.graphic.y = -h;
-
-		this.updateGraphic();
+		if (asset) {
+			this.graphic = new AnimatedSprite(asset, 80, 80);
+			this.graphic.centerOO();
+			this.graphic.originY = 0;
+			this.graphic.offsetY = 0;
+			this.graphic.y = -h;
+			this.updateGraphic();
+		}
 	}
 
 	onDeath() {
@@ -320,8 +353,19 @@ class Character extends Entity {
 	update(input) {
 		super.update(input);
 
-		this.depth = -this.y;
+		// friction
+		this.dx -= this.dx * 0.5;
+		this.dy -= this.dy * 0.5;
 
+		this.x += this.collide(this.x + this.dx, this.y, 'CHAR')
+			? 0.0
+			: this.dx;
+		this.y += this.collide(this.x, this.y + this.dy, 'CHAR')
+			? 0.0
+			: this.dy;
+		this.y = Math.clamp(this.y, minY, maxY);
+
+		this.depth = -this.y;
 		this.updateGraphic();
 
 		if (this.invFrames > 0) {
@@ -384,15 +428,17 @@ class Hitbox extends Entity {
 
 	update(input) {
 		if (this.time <= 10) {
-			const e = this.collideEntity(this.x, this.y, ['CHAR']);
-			if (e != null && e != this.owner && e instanceof Character) {
-				if (e.hurt(this.dmg)) {
-					const asset = assetManager.audio.get(
-						random.choose(punch_sfx),
-					);
-					Sfx.play(asset);
+			const ents = this.collideEntities(this.x, this.y, ['CHAR']);
+			ents.forEach((e) => {
+				if (e != null && e != this.owner && e instanceof Character) {
+					if (e.hurt(this.dmg)) {
+						const asset = assetManager.audio.get(
+							random.choose(punch_sfx),
+						);
+						Sfx.play(asset);
+					}
 				}
-			}
+			});
 		}
 
 		this.time -= 1;
@@ -479,9 +525,8 @@ class Player extends Character {
 				this.flip = moveVec.x ? moveVec.x < 0 : moveVec.y < 0;
 			}
 
-			this.x += speed * moveVec.x;
-			this.y += speed * moveVec.y;
-			this.y = Math.clamp(this.y, minY, maxY);
+			this.dx += speed * moveVec.x;
+			this.dy += speed * moveVec.y;
 
 			if (input.keyPressed('z') && this.bubbles > 0) {
 				this.bubbles -= 1;
@@ -558,6 +603,28 @@ class Player extends Character {
 	}
 }
 
+class Boss extends Character {
+	constructor(x, y, assetManager) {
+		const asset = assetManager.sprites.get('grimeboss.png');
+		super(x, y, null, 6);
+
+		const h = 96.0;
+		this.graphic = new AnimatedSprite(asset, 96, 96);
+		this.graphic.centerOO();
+		this.graphic.originY = 0;
+		this.graphic.offsetY = 0;
+		this.graphic.y = -h;
+		this.updateGraphic();
+
+		this.graphic.add('idle', [0], 60);
+		this.graphic.add('walk', [0, 1, 2, 3], 20);
+		this.graphic.add('punch', [4, 5, 6], 8, false);
+		this.graphic.add('death', [12, 13, 14], 60, false);
+
+		this.flipOffset = 24;
+	}
+}
+
 class Grimey extends Character {
 	death_fade = 0.0;
 
@@ -613,15 +680,9 @@ class Grimey extends Character {
 			var next_state = 0;
 			if (dist > 25.0) {
 				const speed = 0.5;
-				var dx = Math.sign(this.scene.player.x - this.x) * speed;
-				var dy = Math.sign(this.scene.player.y - this.y) * speed;
-				this.x += this.collide(this.x + dx, this.y, ['CHAR'])
-					? 0.0
-					: dx;
-				this.y += this.collide(this.x, this.y + dy, ['CHAR'])
-					? 0.0
-					: dy;
-				this.flip = dx ? dx < 0 : dy < 0;
+				this.dx += Math.sign(this.scene.player.x - this.x) * speed;
+				this.dy += Math.sign(this.scene.player.y - this.y) * speed;
+				this.flip = this.dx ? this.dx < 0 : this.dy < 0;
 
 				next_state = 1;
 			} else {
@@ -700,8 +761,13 @@ class CameraManager extends Entity {
 
 		this.scene.camera.x = this.x - this.scene.engine.canvas.width * 0.5;
 
-		if (this.scene.camera.x < 0) {
-			this.scene.camera.x = 0;
+		if (this.scene.camera.x < screen_min) {
+			this.scene.camera.x = screen_min;
+		}
+
+		var limit = screen_max - this.scene.engine.canvas.width * 1.0;
+		if (this.scene.camera.x > limit) {
+			this.scene.camera.x = limit;
 		}
 	}
 
@@ -897,7 +963,7 @@ class Level extends Scene {
 
 	furthest_room = 0;
 	room_start = 0.0;
-	rooms = [320.0, 320.0, 320.0, 400.0];
+	rooms = [320.0, 320.0, 320.0, 320.0];
 
 	blur() {
 		this.pauseGame();
@@ -917,19 +983,38 @@ class Level extends Scene {
 		const dist = this.player.x - this.room_start;
 		if (dist > this.rooms[this.furthest_room]) {
 			if (this.furthest_room == this.rooms.length - 1) {
-				if (!over) {
+				this.room_start += this.rooms[this.furthest_room++];
+
+				if (!boss_fight) {
+					boss_fight = true;
+
+					console.log('BOSS!!!');
 					var e = new CoolScreen(
-						'You fugging won!',
+						"You have entered the bauws' lair",
 						this.engine.canvas.width,
 						this.engine.canvas.height,
 					);
 					this.addEntity(e);
 					this.addRenderable(e);
-				}
 
-				over = true;
+					const n = this.entities.inScene.length;
+					for (var i = 0; i < n; ++i) {
+						const e = this.entities.inScene[i];
+						if (e instanceof Grimey) {
+							this.removeRenderable(e);
+							this.removeEntity(e);
+							e.scene = null;
+						}
+					}
+				}
 			} else {
 				this.room_start += this.rooms[this.furthest_room++];
+				if (this.furthest_room == this.rooms.length - 1) {
+					screen_max =
+						this.room_start + this.rooms[this.furthest_room];
+					console.log(this.player.x, screen_max);
+				}
+
 				const n = random.int(3) + 2;
 				console.log('Spawning ' + n + ' grimeys');
 
