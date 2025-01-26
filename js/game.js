@@ -13,8 +13,10 @@ import {
 	GraphicList,
 } from './canvas-lord/util/graphic.js';
 import { initDebug } from './debug.js';
+import { Menu } from './menu.js';
 
 const defaultSettings = {
+	autoLevel: false,
 	showCamera: false,
 	showHitboxes: false,
 	seed: undefined,
@@ -44,6 +46,9 @@ const ASSETS = {
 	BG_PNG: 'bg.png',
 	BG2_PNG: 'bg2.png',
 	FLOORS_PNG: 'floors.png',
+
+	// menu
+	LOGO: 'logo.png',
 };
 
 class Tiles extends Entity {
@@ -496,6 +501,13 @@ class Level extends Scene {
 		}
 	}
 
+	update(input) {
+		super.update(input);
+		if (input.keyPressed('Escape')) {
+			this.engine.popScenes();
+		}
+	}
+
 	render(ctx) {
 		super.render(ctx);
 
@@ -557,8 +569,13 @@ assetManager.onLoad(() => {
 	game.assetManager = assetManager;
 	game.backgroundColor = '#101010';
 
-	const scene = new Level(game);
-	game.pushScene(scene);
+	const menu = new Menu(game, Level, settings.autoLevel);
+	game.pushScene(menu);
+
+	if (settings.autoLevel) {
+		menu.goToLevel();
+	}
+
 	game.render();
 
 	initDebug(game, settings, defaultSettings);
