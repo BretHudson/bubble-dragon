@@ -224,6 +224,18 @@ class Mole extends Character {
 	render(ctx, camera) {
 		this.graphic.scaleX = this.flip ? -1.0 : 1.0;
 
+		const drawX = this.x + this.graphic.x - camera.x;
+		const drawY = this.y - camera.y;
+
+		const r = 12;
+		const circleOptions = {
+			type: 'fill',
+			color: '#88888888',
+			radius: r,
+			scaleX: 2,
+		};
+		Draw.circle(ctx, circleOptions, drawX - r * 2, drawY - r, r);
+
 		super.render(ctx, camera);
 
 		const rectOptions = {
