@@ -49,6 +49,14 @@ Object.keys(settings).forEach((key) => {
 	}
 });
 
+const loadFont = async (name, fileName) => {
+	const font = new FontFace(name, `url("${fileName}")`);
+	await font.load();
+	document.fonts.add(font);
+};
+await loadFont('Skullboy', './fonts/ChevyRay - Skullboy.ttf');
+await loadFont('Skullboy Mono', './fonts/ChevyRay - Skullboy Mono.ttf');
+
 const ASSETS = {
 	MRCLEAN_PNG: 'mr_clean.png',
 	BADGUY_PNG: 'badguy.png',
@@ -937,7 +945,7 @@ assetManager.onLoad(() => {
 	game = new Game('ggj-2025-game', {
 		fps: 60,
 		gameLoopSettings: {
-			updateMode: 'focus', // or set it to 'focus'
+			updateMode: 'always', // or set it to 'focus'
 			renderMode: 'onUpdate',
 		},
 	});
