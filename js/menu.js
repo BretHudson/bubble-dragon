@@ -37,6 +37,86 @@ const ASSETS = {
 
 const leading = 24;
 
+export class MenuOptions extends Entity {
+	optionSelected = 0;
+	inc = 0;
+	active = true;
+
+	constructor(x, y, menuOptions) {
+		super(x, y);
+
+		this.graphic = new GraphicList();
+
+		let startY = 0;
+		startY -= ((menuOptions.length - 1) * leading) / 2;
+		this.menuOptions = [...menuOptions].map(({ str }, i) => {
+			return {
+				...menuOptions[i],
+				text: this.addText(str, 0, startY + i * leading, 32),
+			};
+		});
+
+		this.cursors = ['>', '<'].map((str, i) => {
+			const offset = (i * 2 - 1) * 30;
+			const text = this.addText(str, 0, 50, 32);
+			text.x = offset;
+			return text;
+		});
+
+		this.updateSelection();
+	}
+
+	update(input) {
+		if (this.active) {
+			const dirY =
+				+input.keyPressed('ArrowDown') - +input.keyPressed('ArrowUp');
+
+			this.updateSelection(dirY);
+
+			const menuOption = this.menuOptions[this.optionSelected];
+
+			const continueKeys = [' ', 'Enter', 'Return', 'z', 'Z', 'x', 'X'];
+			if (input.keyPressed(continueKeys)) {
+				menuOption.callback();
+			}
+		} else {
+			this.updateSelection();
+		}
+
+		++this.inc;
+	}
+
+	updateSelection(dirY = 0) {
+		const optionCount = this.menuOptions.length;
+		this.optionSelected += dirY;
+		this.optionSelected = (this.optionSelected + optionCount) % optionCount;
+		for (let i = 0; i < optionCount; ++i) {
+			this.menuOptions[i].text.color =
+				i === this.optionSelected ? '#fff' : '#bbc';
+		}
+		const menuOption = this.menuOptions[this.optionSelected].text;
+		let x = menuOption.width / 2 + 10;
+		if (Math.floor(this.inc / 30) % 2 === 0) {
+			x += 4;
+		}
+		const y = menuOption.y - 2;
+		this.cursors.forEach((cursor) => {
+			cursor.y = y;
+			cursor.x = x * Math.sign(cursor.x);
+		});
+	}
+
+	addText(str, x, y, size) {
+		const text = new Text(str, x, y);
+		// const text = new Text(str, 0, 0);
+		text.font = 'Skullboy';
+		text.size = size;
+		text.centerOO();
+		this.graphic.add(text);
+		return text;
+	}
+}
+
 class MenuCredit extends Entity {
 	t = 0;
 	count = 0;
@@ -171,27 +251,14 @@ export class Menu extends Scene {
 			},
 		];
 
-		let startY = canvasCenterY;
-		startY -= ((menuOptions.length - 1) * leading) / 2;
-		this.menuOptions = [...menuOptions].map(({ str }, i) => {
-			return {
-				...menuOptions[i],
-				entity: this.addText(
-					str,
-					canvasCenterX,
-					startY + i * leading,
-					32,
-				),
-			};
-		});
-
-		this.cursors = ['>', '<'].map((str, i) => {
-			const offset = (i * 2 - 1) * 30;
-			const entity = this.addText(str, canvasCenterX, 50, 32);
-			entity.graphic.x = offset;
-			return entity;
-		});
-		this.updateSelection();
+		const options = new MenuOptions(
+			canvasCenterX,
+			canvasCenterY,
+			menuOptions,
+		);
+		this.options = options;
+		this.addEntity(options);
+		this.addRenderable(options);
 
 		// TODO: Fonts by
 
@@ -222,49 +289,12 @@ export class Menu extends Scene {
 		this.creditsOpen = true;
 	}
 
-	updateSelection(dirY = 0) {
-		const optionCount = this.menuOptions.length;
-		this.optionSelected += dirY;
-		this.optionSelected = (this.optionSelected + optionCount) % optionCount;
-
-		for (let i = 0; i < optionCount; ++i) {
-			this.menuOptions[i].entity.graphic.color =
-				i === this.optionSelected ? '#fff' : '#bbc';
-		}
-
-		const menuOption = this.menuOptions[this.optionSelected].entity;
-
-		let x = menuOption.graphic.width / 2 + 10;
-		if (Math.floor(this.inc / 30) % 2 === 0) {
-			x += 4;
-		}
-		const y = menuOption.y - 2;
-		this.cursors.forEach((cursor) => {
-			cursor.y = y;
-			cursor.graphic.x = x * Math.sign(cursor.graphic.x);
-		});
-	}
-
 	update(input) {
 		super.update(input);
 
 		if (this.creditsOpen) {
-			this.updateSelection();
-
 			if (input.keyPressed('Escape', 'Enter', ' ', 'Return')) {
 				this.creditsOpen = false;
-			}
-		} else {
-			const dirY =
-				+input.keyPressed('ArrowDown') - +input.keyPressed('ArrowUp');
-
-			this.updateSelection(dirY);
-
-			const menuOption = this.menuOptions[this.optionSelected];
-
-			const continueKeys = [' ', 'Enter', 'Return', 'z', 'Z', 'x', 'X'];
-			if (input.keyPressed(continueKeys)) {
-				menuOption.callback();
 			}
 		}
 
@@ -284,21 +314,19 @@ export class Menu extends Scene {
 		this.camera.y = Math.lerp(ease(t), 0, this.targetCameraY);
 
 		this.tempCredits.visible = t <= 0;
+		this.options.active = !this.creditsOpen;
 
 		this.credits.forEach((credit) => {
 			credit.setTime(t);
 		});
-
-		++this.inc;
 	}
 
 	addText(str, x, y, size) {
 		const text = new Text(str);
 		text.font = 'Skullboy';
 		text.size = size;
-		const entity = this.addGraphic(text, x, y);
-		entity.graphic.centerOO();
-		return entity;
+		text.centerOO();
+		return this.addGraphic(text, x, y);
 	}
 
 	addGraphic(graphic, x, y) {

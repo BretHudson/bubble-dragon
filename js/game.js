@@ -15,7 +15,7 @@ import {
 	GraphicList,
 } from './canvas-lord/util/graphic.js';
 import { initDebug } from './debug.js';
-import { Menu } from './menu.js';
+import { Menu, MenuOptions } from './menu.js';
 
 const defaultSettings = {
 	autoLevel: false,
@@ -792,7 +792,6 @@ class Buildings extends Entity {
 }
 
 const pauseKeys = ['p', 'P', 'Escape'];
-const unpauseKeys = ['p', 'P', ' ', 'Enter', 'Return', 'Z', 'z', 'X', 'x'];
 
 class PauseScreen extends Scene {
 	constructor(engine) {
@@ -807,27 +806,38 @@ class PauseScreen extends Scene {
 		this.addEntity(rectEntity);
 		this.addRenderable(rectEntity);
 
-		const text = new Text('ur paused dude');
+		const yPad = 20;
+
+		const text = new Text('PAUSED');
 		text.font = 'Skullboy';
-		text.size = 32;
+		text.size = 48;
 		text.centerOO();
 		const textEntity = new Entity(width >> 1, height >> 1);
+		textEntity.y -= yPad * 2;
 		textEntity.graphic = text;
 		this.addEntity(textEntity);
 		this.addRenderable(textEntity);
-	}
 
-	update(input) {
-		if (input.keyPressed('Escape')) {
-			// remove pause
-			this.engine.popScenes();
-			// remove level
-			this.engine.popScenes();
-		}
-
-		if (input.keyPressed(unpauseKeys)) {
-			this.engine.popScenes();
-		}
+		const options = new MenuOptions(width >> 1, height >> 1, [
+			{
+				str: 'Resume',
+				callback: () => {
+					this.engine.popScenes();
+				},
+			},
+			{
+				str: 'Quit',
+				callback: () => {
+					// remove pause
+					this.engine.popScenes();
+					// remove level
+					this.engine.popScenes();
+				},
+			},
+		]);
+		options.y += yPad;
+		this.addEntity(options);
+		this.addRenderable(options);
 	}
 }
 
