@@ -5,7 +5,6 @@ import {
 	Scene,
 	Entity,
 	Draw,
-	Tileset,
 } from './canvas-lord/canvas-lord.js';
 import { Vec2 } from './canvas-lord/util/math.js';
 import { Random } from './canvas-lord/util/random.js';
@@ -16,16 +15,13 @@ import {
 	GraphicList,
 } from './canvas-lord/util/graphic.js';
 import { initDebug } from './debug.js';
-import { Menu, MenuOptions } from './menu.js';
+import { Menu } from './menu.js';
 
 const defaultSettings = {
 	autoLevel: false,
 	showCamera: false,
 	showHitboxes: false,
-	invincible: false,
-	hideOverlay: false,
 	seed: undefined,
-	playerSpeed: 1,
 	cameraInner: 40,
 	cameraOuter: 132,
 	cameraSpeed: 10,
@@ -36,17 +32,14 @@ const settings = Object.assign(
 	JSON.parse(localStorage.getItem('settings')) ?? {},
 );
 
-const minY = 200;
+const minY = 280;
 const maxY = 380;
-const centerY = (maxY - minY) / 2 + minY;
 const random = new Random(settings.seed);
-
-var over = false;
 
 var screen_min = 0.0;
 var screen_max = Infinity;
 
-var boss_fight = false;
+var over = false;
 
 // delete old keys
 Object.keys(settings).forEach((key) => {
@@ -55,30 +48,21 @@ Object.keys(settings).forEach((key) => {
 	}
 });
 
-const loadFont = async (name, fileName) => {
-	const font = new FontFace(name, `url("${fileName}")`);
-	await font.load();
-	document.fonts.add(font);
-};
-await loadFont('Skullboy', './fonts/ChevyRay - Skullboy.ttf');
-await loadFont('Skullboy Mono', './fonts/ChevyRay - Skullboy Mono.ttf');
-
 const ASSETS = {
 	MRCLEAN_PNG: 'mr_clean.png',
 	BADGUY_PNG: 'badguy.png',
-	GRIMEBOSS_PNG: 'grimeboss.png',
 	BG_PNG: 'bg.png',
 	BG2_PNG: 'bg2.png',
 	BUBBLES2_PNG: 'bubbles2.png',
-	FLOOR_PNG: 'floor.png',
-	FLOOR_GRADIENT_PNG: 'floor_gradient.png',
+	FLOORS_PNG: 'floors.png',
+	GRIMEBOSS_PNG: 'grimeboss.png',
 
 	// backgrounds
 	BG_SUNSET: 'bg_0_sunset.png', // static
 	BG_CLOUD: 'bg_1_clouds.png', // static
 	BG_PYRAMIDS: 'pyramids.png', // parallax
 	BG_SKYSCRAPERS: 'parallax_parts_skyscrapers.png', // parallax
-	BG_FG: 'parallax_parts_fg.png', // tiled
+	BG_FG: 'parallax_parts_fg.png', // parallax
 
 	// menu
 	LOGO: 'logo.png',
@@ -97,15 +81,6 @@ const ASSETS = {
 	POP: 'pop.wav',
 };
 
-const DEPTH = {
-	BACKGROUND: 1000,
-	SKYSCRAPERS: 100,
-	TILES: 10,
-	BUILDINGS: 9,
-	OVERLAY: -1000,
-	CAMERA: -Infinity,
-};
-
 const punch_sfx = [
 	ASSETS.THUD,
 	ASSETS.THUNK,
@@ -116,41 +91,32 @@ const punch_sfx = [
 	ASSETS.WUGH,
 ];
 
-const tileStartY = minY - 10;
-
 class Tiles extends Entity {
 	constructor(assetManager) {
 		super(0, 0);
 
-		const asset = assetManager.sprites.get(ASSETS.FLOOR_PNG);
+		const asset = assetManager.sprites.get(ASSETS.FLOORS_PNG);
 		this.graphic = new GraphicList();
-		this.depth = DEPTH.TILES;
+		this.depth = -1;
 
-		const { width, height } = asset;
-
-		var s = Sprite.createRect(width * 10, 480, '#101010');
+		var s = Sprite.createRect(480 * 2, 49 * 2, '#101010');
 		s.x = 0;
-		s.y = tileStartY;
+		s.y = 360 - 49 * 2;
 		this.graphic.add(s);
 
-		const xSize = 5;
+		const xSize = 7;
 		for (var i = -xSize; i <= xSize; i++) {
-			this.graphic.add(new Sprite(asset, width * i, tileStartY));
-		}
+			for (var j = 1; j <= 2; j++) {
+				var xx = i * 93 + j * 49 * 1.0;
+				var yy = 180 * 2 - j * 49;
 
-		const gradient = new Sprite(
-			assetManager.sprites.get(ASSETS.FLOOR_GRADIENT_PNG),
-			0,
-			tileStartY,
-		);
-		gradient.alpha = 0.7;
-		gradient.scaleX = (width * 10) / gradient.width;
-		this.graphic.add(gradient);
+				this.graphic.add(new Sprite(asset, xx, yy));
+			}
+		}
 	}
 
 	update(input) {
-		const asset = assetManager.sprites.get(ASSETS.FLOOR_PNG);
-		const limit = asset.width * 3;
+		const limit = 93 * 3;
 		this.x = Math.floor(this.scene.camera.x / limit) * limit;
 	}
 }
@@ -176,7 +142,7 @@ class BubbleTrap extends Entity {
 			tag: 'BUBBLE',
 			// yes i moved it slightly down on purpose
 			x: -20,
-			y: -10,
+			y: -20,
 			w: 40,
 			h: 40,
 		};
@@ -188,7 +154,7 @@ class BubbleTrap extends Entity {
 		this.t += 10.0 / 60.0;
 
 		this.x += this.dir * 1.5;
-		this.y = this.baseline + Math.sin(this.t * 0.5) * 16.0;
+		this.graphic.y = Math.sin(this.t * 0.5) * 8.0 - 50.0;
 
 		var view_x = this.x - this.scene.camera.x;
 		if (view_x < 0.0 || view_x >= this.scene.engine.canvas.width) {
@@ -203,34 +169,69 @@ class BubbleTrap extends Entity {
 			this.scene.removeRenderable(this);
 			this.scene.removeEntity(this);
 			this.scene = null;
+			return;
 		}
 
 		if (!this.caught) {
 			// if an enemy gets caught by a bubble we wanna drag them with it
 			const e = this.collideEntity(this.x, this.y, ['CHAR']);
-			if (
-				e != null &&
-				e != this.owner &&
-				e instanceof Grimey &&
-				!e.bubble
-			) {
-				e.bubble = this;
-				e.anim_state = -1;
-				e.graphic.scale = 0.5;
-				e.graphic.y = -30.0;
-				e.graphic.play('stuck');
+			if (e != null && e != this.owner && !e.bubble) {
+				if (e instanceof Boss) {
+					e.anim_state = -1;
+					e.dx = 20.0 * this.dir;
+					e.hurt(1);
+					e.graphic.play('stunned');
+					this.caught = e;
 
-				this.caught = e;
+					Sfx.play(assetManager.audio.get(ASSETS.POP));
+					this.scene.removeRenderable(this);
+					this.scene.removeEntity(this);
+					this.scene = null;
+				} else if (e instanceof Grimey) {
+					e.bubble = this;
+					e.hurt(1);
+					e.anim_state = -1;
+					e.graphic.scale = 0.4;
+					e.graphic.play('stuck');
+					this.caught = e;
+				}
 			}
 		}
 	}
 }
 
+class Background extends Entity {
+	constructor(asset_name, canvas_height, assetManager) {
+		super(0, 0);
+		const asset = assetManager.sprites.get(asset_name);
+
+		this.graphic = new Sprite(asset);
+		this.graphic.scale = 0.5;
+		this.depth = 1;
+
+		if (asset_name == ASSETS.BG2_PNG) {
+			this.graphic.scrollX = 0.5;
+			this.depth = 2;
+		}
+
+		this.y = canvas_height - 100 - asset.height * 0.5;
+	}
+
+	update(input) {
+		const limit = 1000;
+		this.x =
+			Math.floor((this.scene.camera.x * this.graphic.scrollX) / limit) *
+			limit;
+	}
+}
+
 class CoolScreen extends Entity {
 	fade = 0.0;
+	boss_txt = false;
 
-	constructor(txt, w, h) {
+	constructor(txt, w, h, boss_txt) {
 		super(w / 2, h / 2);
+		this.boss_txt = boss_txt;
 
 		this.graphic = new GraphicList();
 
@@ -240,11 +241,12 @@ class CoolScreen extends Entity {
 		this.graphic.add(this.bg);
 
 		this.txt = new Text(txt, 0, 0);
-		this.txt.size = 20.0;
+		this.txt.font = 'Skullboy';
+		this.txt.size = 32.0;
 		this.txt.scrollX = 0.0;
 		this.txt.centerOrigin();
 		this.graphic.add(this.txt);
-		this.depth = DEPTH.OVERLAY;
+		this.depth = -1000;
 	}
 
 	update(input) {
@@ -252,7 +254,7 @@ class CoolScreen extends Entity {
 		if (this.fade > 1.0) {
 			this.fade = 1.0;
 
-			if (boss_fight) {
+			if (this.boss_txt) {
 				screen_min = this.scene.room_start;
 				screen_max = this.scene.room_start + 400.0;
 
@@ -265,21 +267,32 @@ class CoolScreen extends Entity {
 				this.scene.addEntity(e);
 				this.scene.addRenderable(e);
 
+				const n = this.scene.entities.inScene.length;
+				for (var i = 0; i < n; ++i) {
+					const e = this.scene.entities.inScene[i];
+					if (e instanceof Grimey) {
+						this.scene.removeRenderable(e);
+						this.scene.removeEntity(e);
+						e.scene = null;
+					}
+				}
+
 				// kill overlay
 				this.scene.removeRenderable(this);
 				this.scene.removeEntity(this);
 				this.scene = null;
+			} else {
+				if (input.keyPressed(pauseKeys)) {
+					this.scene.engine.popScenes();
+				}
 			}
 		}
 
-		if (boss_fight) {
-			this.txt.alpha = this.bg.alpha =
-				Math.sin(this.fade * Math.PI) * 0.5 + 0.5;
+		if (this.boss_txt) {
+			this.bg.alpha = Math.sin(this.fade * Math.PI) * 0.5 + 0.5;
 		} else {
-			this.txt.alpha = this.bg.alpha = this.fade;
+			this.bg.alpha = this.fade;
 		}
-
-		this.visible = !settings.hideOverlay;
 	}
 }
 
@@ -295,6 +308,7 @@ class Character extends Entity {
 	dy = 0;
 
 	flipOffset = 0;
+	friction = 0.5;
 
 	constructor(x, y, asset, initialHealth) {
 		super(x, y);
@@ -305,10 +319,10 @@ class Character extends Entity {
 		this.collider = {
 			type: 'rect',
 			tag: 'CHAR',
-			x: -10,
-			y: -20,
-			w: 20,
-			h: 20,
+			x: -15,
+			y: -15,
+			w: 30,
+			h: 30,
 		};
 
 		if (asset) {
@@ -321,10 +335,9 @@ class Character extends Entity {
 		}
 	}
 
-	onDeath() {
-		this.scene.removeRenderable(this);
-		this.scene.removeEntity(this);
-		this.scene = null;
+	updateGraphic() {
+		this.graphic.x = this.getImageXOffset();
+		this.graphic.x += this.flip ? -this.flipOffset : this.flipOffset;
 	}
 
 	getImageXOffset() {
@@ -332,9 +345,10 @@ class Character extends Entity {
 		return -(this.y - minY) + (centerY - minY);
 	}
 
-	updateGraphic() {
-		this.graphic.x = this.getImageXOffset();
-		this.graphic.x += this.flip ? -this.flipOffset : this.flipOffset;
+	onDeath() {
+		this.scene.removeRenderable(this);
+		this.scene.removeEntity(this);
+		this.scene = null;
 	}
 
 	hurt(pts) {
@@ -355,16 +369,26 @@ class Character extends Entity {
 	update(input) {
 		super.update(input);
 
-		// friction
-		this.dx -= this.dx * 0.5;
-		this.dy -= this.dy * 0.5;
+		if (this.scene == null) {
+			return; // we just died
+		}
 
-		this.x += this.collide(this.x + this.dx, this.y, 'CHAR')
-			? 0.0
-			: this.dx;
-		this.y += this.collide(this.x, this.y + this.dy, 'CHAR')
-			? 0.0
-			: this.dy;
+		// friction
+		this.dx -= this.dx * this.friction;
+		this.dy -= this.dy * this.friction;
+
+		if (!(this instanceof Player)) {
+			this.x += this.collide(this.x + this.dx, this.y, 'CHAR')
+				? 0.0
+				: this.dx;
+			this.y += this.collide(this.x, this.y + this.dy, 'CHAR')
+				? 0.0
+				: this.dy;
+		} else {
+			this.x += this.dx;
+			this.y += this.dy;
+		}
+		this.x = Math.clamp(this.x, screen_min - 100.0, screen_max + 20.0);
 		this.y = Math.clamp(this.y, minY, maxY);
 
 		this.depth = -this.y;
@@ -374,34 +398,10 @@ class Character extends Entity {
 			this.invFrames -= 1;
 		}
 
-		this.graphic.scaleX = this.flip ? -1.0 : 1.0;
 		this.hitFlash = this.invFrames % 8 >= 4;
 	}
 
 	render(ctx, camera) {
-		const drawX = this.x - camera.x;
-		const drawY = this.y - camera.y;
-
-		const r = 9;
-		const circleOptions = {
-			type: 'fill',
-			color: '#00000033',
-			radius: r,
-			scaleX: 2,
-		};
-		Draw.circle(ctx, circleOptions, drawX - r * 2, drawY - r, r);
-		Draw.circle(
-			ctx,
-			{
-				...circleOptions,
-				color: '#ffffff22',
-				type: 'stroke',
-			},
-			drawX - r * 2 + this.getImageXOffset(),
-			drawY - r,
-			r,
-		);
-
 		this.graphic.color = this.hitFlash ? 'white' : undefined;
 		super.render(ctx, camera);
 	}
@@ -411,21 +411,23 @@ class Hitbox extends Entity {
 	time = 0;
 	owner = null;
 	dmg = 0;
+	dir = 0;
 
-	constructor(o, d, x, y) {
+	constructor(o, d, x, y, dir) {
 		super(x, y);
+		this.dir = dir;
 		this.dmg = d;
 		this.owner = o;
 		this.collider = {
 			type: 'rect',
 			tag: 'HITBOX',
 			x: 0,
-			y: -5,
+			y: -30,
 			w: 20,
-			h: 30,
+			h: 60,
 		};
 
-		this.time = 20;
+		this.time = 30;
 	}
 
 	update(input) {
@@ -434,6 +436,11 @@ class Hitbox extends Entity {
 			ents.forEach((e) => {
 				if (e != null && e != this.owner && e instanceof Character) {
 					if (e.hurt(this.dmg)) {
+						if (e.health == 0) {
+							e.dx = 30.0 * this.dir;
+							e.friction = 0.2;
+						}
+
 						const asset = assetManager.audio.get(
 							random.choose(punch_sfx),
 						);
@@ -466,22 +473,42 @@ class Player extends Character {
 	bubbles = 3;
 
 	constructor(x, y, assetManager) {
+		super(x, y);
+		this.health = 10;
+
+		const scale = 1.0;
 		const asset = assetManager.sprites.get('mr_clean.png');
-		super(x, y, asset, 10);
+		const w = 80.0 * scale;
+		const h = 80.0 * scale;
+
+		this.collider = {
+			type: 'rect',
+			tag: 'CHAR',
+			x: -10,
+			y: -20,
+			w: 20,
+			h: 20,
+		};
+
+		this.graphic = new AnimatedSprite(asset, 80, 80);
+		this.graphic.centerOO();
+		this.graphic.originY = 0;
+		this.graphic.offsetY = 0;
+		this.graphic.y = -h;
+		this.graphic.scale = scale;
 
 		this.graphic.add('idle', [0], 60);
 		this.graphic.add('walk', [0, 1, 2, 3], 20);
 		this.graphic.add('punch', [4, 5, 6], 8);
-
-		this.flipOffset = 10;
 	}
 
 	onDeath() {
 		if (!over) {
 			var e = new CoolScreen(
-				'You fugging died!',
+				'GAME OVER!',
 				this.scene.engine.canvas.width,
 				this.scene.engine.canvas.height,
+				false,
 			);
 			this.scene.addEntity(e);
 			this.scene.addRenderable(e);
@@ -493,11 +520,10 @@ class Player extends Character {
 	}
 
 	update(input) {
+		super.update(input);
 		if (this.over) {
 			return;
 		}
-
-		if (settings.invincible) this.health = 10;
 
 		if (this.bubbles < 3) {
 			this.bubble_ticks += 1;
@@ -515,7 +541,7 @@ class Player extends Character {
 				this.hitbox = null;
 			}
 		} else {
-			const speed = settings.playerSpeed;
+			const speed = 1.0;
 			let moveVec = new Vec2(0, 0);
 
 			moveVec.x = +input.keyCheck(keysR) - +input.keyCheck(keysL);
@@ -527,26 +553,23 @@ class Player extends Character {
 				this.flip = moveVec.x ? moveVec.x < 0 : moveVec.y < 0;
 			}
 
-			this.dx += speed * moveVec.x;
-			this.dy += speed * moveVec.y;
+			this.x += speed * moveVec.x;
+			this.y += speed * moveVec.y;
+			this.y = Math.clamp(this.y, minY, maxY);
 
 			if (input.keyPressed('z') && this.bubbles > 0) {
 				this.bubbles -= 1;
 				this.bubble_ticks = 0;
 
-				var e = new BubbleTrap(
-					this.x,
-					this.y - 50.0,
-					this.flip ? -1.0 : 1.0,
-				);
+				var e = new BubbleTrap(this.x, this.y, this.flip ? -1.0 : 1.0);
 				this.scene.addEntity(e);
 				this.scene.addRenderable(e);
 			}
 
 			if (input.keyPressed(' ')) {
-				var xx = this.x + (this.flip ? -30.0 : 10.0);
+				var xx = this.x + (this.flip ? -40.0 : 20.0);
 
-				var e = new Hitbox(this, 2, xx, this.y - 20.0);
+				var e = new Hitbox(this, 2, xx, this.y, this.flip ? -1.0 : 1.0);
 				this.scene.addEntity(e);
 				this.scene.addRenderable(e);
 				this.hitbox = e;
@@ -559,10 +582,26 @@ class Player extends Character {
 			}
 		}
 
-		super.update(input);
+		this.depth = -this.y;
 	}
 
 	render(ctx, camera) {
+		// this.graphic.x = -(this.y - minY);
+		this.graphic.x = this.flip ? -10 : 10;
+		this.graphic.scaleX = this.flip ? -1.0 : 1.0;
+
+		const drawX = this.x - camera.x;
+		const drawY = this.y - camera.y;
+
+		const r = 12;
+		const circleOptions = {
+			type: 'fill',
+			color: '#88888888',
+			radius: r,
+			scaleX: 2,
+		};
+		Draw.circle(ctx, circleOptions, drawX - r * 2, drawY - r, r);
+
 		super.render(ctx, camera);
 
 		const rectOptions = {
@@ -608,66 +647,60 @@ class Player extends Character {
 class Boss extends Character {
 	constructor(x, y, assetManager) {
 		const asset = assetManager.sprites.get('grimeboss.png');
-		super(x, y, null, 6);
+		super(x, y, null, 20);
 
 		const h = 96.0;
-		this.graphic = new AnimatedSprite(asset, 96, 96);
+		this.graphic = new AnimatedSprite(asset, 80, 96);
 		this.graphic.centerOO();
 		this.graphic.originY = 0;
 		this.graphic.offsetY = 0;
 		this.graphic.y = -h;
 		this.updateGraphic();
 
-		this.graphic.add('idle', [0], 60);
-		this.graphic.add('walk', [0, 1, 2, 3], 20);
-		this.graphic.add('punch', [4, 5, 6], 8, false);
-		this.graphic.add('death', [12, 13, 14], 60, false);
-
-		this.flipOffset = 24;
-	}
-}
-
-class Grimey extends Character {
-	death_fade = 0.0;
-
-	constructor(x, y, assetManager) {
-		const asset = assetManager.sprites.get('badguy.png');
-		super(x, y, asset, 6);
+		this.collider = {
+			type: 'rect',
+			tag: 'CHAR',
+			x: -20,
+			y: -30,
+			w: 40,
+			h: 40,
+		};
 
 		this.graphic.add('idle', [0], 60);
 		this.graphic.add('walk', [0, 1, 2, 3], 20);
-		this.graphic.add('punch', [4, 5, 6], 8, false);
-		this.graphic.add('death', [12, 13, 14], 60, false);
-		this.graphic.add('stuck', [14], 60, false);
+		this.graphic.add('punch', [6, 7, 8], 8, false);
+		this.graphic.add('death', [18, 19, 20], 60, false);
+		this.graphic.add('stunned', [19], 30, false);
 
-		this.flipOffset = 24;
+		this.graphic.play('idle');
+
+		this.flipOffset = 10;
 	}
 
 	onDeath() {
-		const asset = assetManager.audio.get(ASSETS.CRUNCH);
-		Sfx.play(asset);
+		if (!over) {
+			var e = new CoolScreen(
+				'YOU WON!',
+				this.scene.engine.canvas.width,
+				this.scene.engine.canvas.height,
+				false,
+			);
+			this.scene.addEntity(e);
+			this.scene.addRenderable(e);
 
-		this.graphic.play('death');
-		this.collider = null;
+			over = true;
+		}
+
+		super.onDeath();
 	}
 
 	update(input) {
-		if (this.health == 0) {
-			if (this.graphic.frame == 2) {
-				this.death_fade += 0.33 / 60.0;
-				this.graphic.alpha = 1.0 - this.death_fade;
-				if (this.death_fade > 1.0) {
-					super.onDeath();
-				}
-			}
-			return;
-		} else if (over) {
-			return;
-		} else if (this.bubble != null) {
-			this.x = this.bubble.x;
-			this.y = this.bubble.y;
+		if (this.invFrames > 0) {
+			this.friction = 0.3;
+			super.update(input);
 			return;
 		}
+		this.friction = 0.5;
 
 		if (this.hitbox !== null) {
 			// hitbox died, we can hit again
@@ -677,20 +710,20 @@ class Grimey extends Character {
 		} else {
 			var xx = this.scene.player.x - this.x;
 			var yy = this.scene.player.y - this.y;
-			var dist = Math.sqrt(xx * xx + yy * yy);
+			var dist = Math.max(Math.abs(xx), Math.abs(yy));
 
 			var next_state = 0;
-			if (dist > 25.0) {
-				const speed = 0.5;
+			if (dist > 45.0) {
+				const speed = 0.9;
 				this.dx += Math.sign(this.scene.player.x - this.x) * speed;
 				this.dy += Math.sign(this.scene.player.y - this.y) * speed;
 				this.flip = this.dx ? this.dx < 0 : this.dy < 0;
 
 				next_state = 1;
 			} else {
-				var xx = this.x + (this.flip ? -30.0 : 10.0);
+				var xx = this.x + (this.flip ? -40.0 : 20.0);
 
-				var e = new Hitbox(this, 1, xx, this.y - 20.0);
+				var e = new Hitbox(this, 1, xx, this.y, this.flip ? -1.0 : 1.0);
 				this.scene.addEntity(e);
 				this.scene.addRenderable(e);
 				this.hitbox = e;
@@ -708,7 +741,134 @@ class Grimey extends Character {
 			}
 		}
 
+		this.graphic.scaleX = this.flip ? -1.0 : 1.0;
 		super.update(input);
+	}
+}
+
+class Grimey extends Character {
+	death_fade = 0.0;
+
+	constructor(x, y, assetManager) {
+		super(x, y);
+
+		const scale = 1.0;
+		const asset = assetManager.sprites.get('badguy.png');
+		const w = 80.0 * scale;
+		const h = 80.0 * scale;
+
+		this.collider = {
+			type: 'rect',
+			tag: 'CHAR',
+			x: -10,
+			y: -20,
+			w: 20,
+			h: 20,
+		};
+		this.health = 6;
+
+		this.graphic = new AnimatedSprite(asset, 80, 80);
+		this.graphic.centerOO();
+		this.graphic.originY = 0;
+		this.graphic.offsetY = 0;
+		this.graphic.y = -h;
+		this.graphic.scale = scale;
+
+		this.graphic.add('idle', [0], 60);
+		this.graphic.add('walk', [0, 1, 2, 3], 20);
+		this.graphic.add('punch', [4, 5, 6], 8, false);
+		this.graphic.add('death', [12, 13, 14], 60, false);
+		this.graphic.add('stuck', [14], 60, false);
+
+		this.flipOffset = 10;
+	}
+
+	onDeath() {
+		const asset = assetManager.audio.get(ASSETS.CRUNCH);
+		Sfx.play(asset);
+
+		this.graphic.play('death');
+		this.collider = null;
+	}
+
+	update(input) {
+		super.update(input);
+		this.depth = -this.y;
+
+		if (this.health == 0) {
+			super.update(input);
+
+			if (this.graphic.frame == 2) {
+				this.death_fade += 0.33 / 60.0;
+				this.graphic.alpha = 1.0 - this.death_fade;
+				if (this.death_fade > 1.0) {
+					super.onDeath();
+				}
+			}
+			return;
+		} else if (over) {
+			return;
+		} else if (this.bubble != null) {
+			this.x = this.bubble.x;
+			this.y = this.bubble.y;
+			this.graphic.x = 0.0;
+			this.graphic.y = this.bubble.graphic.y - 30.0;
+			return;
+		}
+
+		if (this.hitbox) {
+			// hitbox died, we can hit again
+			if (!this.hitbox.scene) {
+				this.anim_state = -1;
+				this.hitbox = null;
+			}
+		} else {
+			var xx = this.scene.player.x - this.x;
+			var yy = this.scene.player.y - this.y;
+			var dist = Math.max(Math.abs(xx), Math.abs(yy));
+
+			var next_state = 0;
+			if (dist > 45.0) {
+				const speed = 0.5;
+				var dx = Math.sign(this.scene.player.x - this.x) * speed;
+				var dy = Math.sign(this.scene.player.y - this.y) * speed;
+				this.x += this.collide(this.x + dx, this.y, ['CHAR'])
+					? 0.0
+					: dx;
+				this.y += this.collide(this.x, this.y + dy, ['CHAR'])
+					? 0.0
+					: dy;
+				this.flip = dx ? dx < 0 : dy < 0;
+
+				next_state = 1;
+			} else {
+				var xx = this.x + (this.flip ? -40.0 : 20.0);
+
+				var e = new Hitbox(this, 1, xx, this.y, this.flip ? -1.0 : 1.0);
+				this.scene.addEntity(e);
+				this.scene.addRenderable(e);
+				this.hitbox = e;
+				next_state = 2;
+			}
+
+			if (this.anim_state != next_state) {
+				this.graphic.play(states2anim[next_state]);
+				this.anim_state = next_state;
+			}
+
+			if (this.x + 400.0 < this.scene.player.x) {
+				console.log('Offscreened!');
+				super.onDeath();
+			}
+		}
+
+		this.graphic.scaleX = this.flip ? -1.0 : 1.0;
+	}
+
+	render(ctx, camera) {
+		// this.graphic.x = -(this.y - minY) + (this.flip ? -10 : 10);
+		this.graphic.x = this.flip ? -10 : 10;
+		super.render(ctx, camera);
 	}
 }
 
@@ -721,7 +881,7 @@ class CameraManager extends Entity {
 	constructor(follow) {
 		super(0, 0);
 		this.follow = follow;
-		this.depth = DEPTH.CAMERA;
+		this.depth = -Infinity;
 		this.updateSettings();
 	}
 
@@ -735,9 +895,11 @@ class CameraManager extends Entity {
 	update(input) {
 		this.updateSettings();
 
-		if (settings.showCamera) {
-			if (input.keyPressed?.('q')) this.dir = -1;
-			if (input.keyPressed?.('e')) this.dir = 1;
+		if (settings.showCamera && input.keyPressed('q')) {
+			this.dir = -1;
+		}
+		if (settings.showCamera && input.keyPressed('e')) {
+			this.dir = 1;
 		}
 
 		const { x, innerDist, outerDist, dir } = this;
@@ -749,7 +911,7 @@ class CameraManager extends Entity {
 			--toggleX;
 		}
 
-		const realFollowX = this.follow.x;
+		const realFollowX = this.follow.x - 50.0;
 		if (Math.sign(realFollowX - followX) === dir) {
 			const targetX = realFollowX + innerDist * dir;
 			const dist = targetX - x;
@@ -767,9 +929,8 @@ class CameraManager extends Entity {
 			this.scene.camera.x = screen_min;
 		}
 
-		var limit = screen_max - this.scene.engine.canvas.width * 1.0;
-		if (this.scene.camera.x > limit) {
-			this.scene.camera.x = limit;
+		if (this.scene.camera.x > screen_max - this.scene.engine.canvas.width) {
+			this.scene.camera.x = screen_max - this.scene.engine.canvas.width;
 		}
 	}
 
@@ -811,7 +972,7 @@ let buildingIndices;
 	});
 }
 
-class Skyscrapers extends Entity {
+class Buildings extends Entity {
 	constructor(xOffset) {
 		super(xOffset * buildingW, 0);
 
@@ -822,8 +983,9 @@ class Skyscrapers extends Entity {
 			buildingW,
 			540,
 		);
-		this.depth = DEPTH.SKYSCRAPERS;
+		this.depth = -1;
 		this.graphic.centerOO();
+		this.y = 50.0;
 
 		this.graphic.scrollX = 0.25;
 
@@ -855,86 +1017,6 @@ class Skyscrapers extends Entity {
 		if (x > buildingW * 4) {
 			this.x -= buildingW * 5;
 			this.id -= 5;
-		}
-	}
-}
-
-class Buildings extends Entity {
-	constructor() {
-		super(65, 60);
-
-		const asset = assetManager.sprites.get(ASSETS.BG_FG);
-
-		const tileW = 64;
-		const tileH = 64;
-
-		const totalWidth = [320.0, 320.0, 320.0, 320.0].reduce(
-			(a, v) => a + v,
-			0,
-		);
-		console.log(totalWidth);
-		const tileset = new Tileset(
-			asset,
-			totalWidth * 50,
-			asset.height,
-			tileW,
-			tileH,
-		);
-		this.graphic = tileset;
-		this.graphic.entity = this;
-
-		this.depth = DEPTH.BUILDINGS;
-
-		const building1 = [0, 0, 4, 2];
-		const building2 = [4, 0, 5, 2];
-		const empty = [0, 6, 1, 1];
-
-		const billboards = Array.from({ length: 8 }, (_, i) => {
-			return [i % 5, 2 + Math.floor(i / 5), 1, 1];
-		});
-
-		const renderBuilding = (_x, _y, building) => {
-			const [startX, startY, w, h] = building;
-			console.log({ startX, startY, w, h });
-
-			for (let y = 0; y < h; ++y) {
-				for (let x = 0; x < w; ++x) {
-					tileset.setTile(_x + x, _y + y, startX + x, startY + y);
-				}
-			}
-		};
-
-		let xPos = 0;
-
-		const baseArr = [
-			empty,
-			empty,
-			empty,
-			empty,
-			empty,
-			empty,
-			empty,
-			empty,
-			building1,
-			building1,
-			building1,
-			building1,
-			building2,
-			building2,
-			building2,
-			building2,
-			...billboards,
-		];
-
-		const random = new Random(23947);
-		for (let i = 0; i < 4; ++i) {
-			const arr = [...baseArr];
-			while (arr.length) {
-				const [structure] = arr.splice(random.float(arr.length), 1);
-				const [x, y, w, h] = structure;
-				renderBuilding(xPos, 2 - h, structure);
-				xPos += w;
-			}
 		}
 	}
 }
@@ -997,21 +1079,28 @@ class Level extends Scene {
 		const canvasSize = new Vec2(engine.canvas.width, engine.canvas.height);
 		const canvasCenter = canvasSize.scale(0.5);
 
-		const p = new Player(canvasCenter.x, centerY, assetManager);
+		const p = new Player(1200.0, 400.0, assetManager);
 		this.player = p;
 
 		const cameraManager = new CameraManager(this.player);
 
+		const bg2 = new Background(ASSETS.BG2_PNG, canvasSize.y, assetManager);
+		const bg = new Background(ASSETS.BG_PNG, canvasSize.y, assetManager);
 		const tiles = new Tiles(assetManager);
 
-		const entities = [ASSETS.BG_SUNSET, ASSETS.BG_CLOUD, ASSETS.BG_PYRAMIDS]
+		const entities = [
+			ASSETS.BG_SUNSET,
+			ASSETS.BG_CLOUD,
+			ASSETS.BG_PYRAMIDS,
+			// ASSETS.BG_SKYSCRAPERS,
+			// ASSETS.BG_FG,
+		]
 			.map((asset) => assetManager.sprites.get(asset))
 			.map((sprite) => {
 				const entity = new Entity(
 					engine.canvas.width >> 1,
 					(engine.canvas.height >> 1) - 80,
 				);
-				entity.depth = DEPTH.BACKGROUND;
 				entity.graphic = new Sprite(sprite);
 				entity.graphic.scale = 0.5;
 				entity.graphic.centerOO();
@@ -1023,14 +1112,10 @@ class Level extends Scene {
 		entities[2].graphic.scrollX = 0.025;
 
 		for (let i = 0; i < 5; ++i) {
-			const skyscrapers = new Skyscrapers(i);
-			this.addEntity(skyscrapers);
-			this.addRenderable(skyscrapers);
+			const buildings = new Buildings(i);
+			this.addEntity(buildings);
+			this.addRenderable(buildings);
 		}
-
-		const buildings = new Buildings();
-		this.addEntity(buildings);
-		this.addRenderable(buildings);
 
 		[...entities, tiles, p, cameraManager].forEach((e) => {
 			this.addEntity(e);
@@ -1046,7 +1131,9 @@ class Level extends Scene {
 	rooms = [320.0, 320.0, 320.0, 320.0];
 
 	blur() {
-		this.pauseGame();
+		if (!over) {
+			this.pauseGame();
+		}
 	}
 
 	pauseGame() {
@@ -1056,43 +1143,33 @@ class Level extends Scene {
 	update(input) {
 		super.update(input);
 
-		if (input.keyPressed(pauseKeys)) {
+		if (!over && input.keyPressed(pauseKeys)) {
 			this.pauseGame();
 		}
 
 		const dist = this.player.x - this.room_start;
-		if (dist > this.rooms[this.furthest_room]) {
+		if (
+			this.furthest_room < this.rooms.length &&
+			dist > this.rooms[this.furthest_room]
+		) {
 			if (this.furthest_room == this.rooms.length - 1) {
 				this.room_start += this.rooms[this.furthest_room++];
+				screen_min = this.room_start;
+				screen_max = this.room_start + this.engine.canvas.width;
 
-				if (!boss_fight) {
-					boss_fight = true;
-
-					console.log('BOSS!!!');
-					var e = new CoolScreen(
-						"You have entered the bauws' lair",
-						this.engine.canvas.width,
-						this.engine.canvas.height,
-					);
-					this.addEntity(e);
-					this.addRenderable(e);
-
-					const n = this.entities.inScene.length;
-					for (var i = 0; i < n; ++i) {
-						const e = this.entities.inScene[i];
-						if (e instanceof Grimey) {
-							this.removeRenderable(e);
-							this.removeEntity(e);
-							e.scene = null;
-						}
-					}
-				}
+				var e = new CoolScreen(
+					'BOSS TIME!',
+					this.engine.canvas.width,
+					this.engine.canvas.height,
+					true,
+				);
+				this.addEntity(e);
+				this.addRenderable(e);
 			} else {
 				this.room_start += this.rooms[this.furthest_room++];
 				if (this.furthest_room == this.rooms.length - 1) {
 					screen_max =
 						this.room_start + this.rooms[this.furthest_room];
-					console.log(this.player.x, screen_max);
 				}
 
 				const n = random.int(3) + 2;
