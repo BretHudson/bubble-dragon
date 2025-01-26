@@ -10,6 +10,7 @@ const callbacks = {
 };
 
 const types = {
+	autoLevel: 'checkbox',
 	showCamera: 'checkbox',
 	showHitboxes: 'checkbox',
 	seed: 'checkbox',
