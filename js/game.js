@@ -41,6 +41,9 @@ const maxY = 380;
 const centerY = (maxY - minY) / 2 + minY;
 const random = new Random(settings.seed);
 
+var screen_min = 0.0;
+var screen_max = Infinity;
+
 var over = false;
 
 // delete old keys
@@ -170,7 +173,7 @@ class BubbleTrap extends Entity {
 			tag: 'BUBBLE',
 			// yes i moved it slightly down on purpose
 			x: -20,
-			y: -10,
+			y: -20,
 			w: 40,
 			h: 40,
 		};
@@ -182,7 +185,7 @@ class BubbleTrap extends Entity {
 		this.t += 10.0 / 60.0;
 
 		this.x += this.dir * 1.5;
-		this.y = this.baseline + Math.sin(this.t * 0.5) * 16.0;
+		this.graphic.y = Math.sin(this.t * 0.5) * 8.0 - 50.0;
 
 		var view_x = this.x - this.scene.camera.x;
 		if (view_x < 0.0 || view_x >= this.scene.engine.canvas.width) {
@@ -197,24 +200,32 @@ class BubbleTrap extends Entity {
 			this.scene.removeRenderable(this);
 			this.scene.removeEntity(this);
 			this.scene = null;
+			return;
 		}
 
 		if (!this.caught) {
 			// if an enemy gets caught by a bubble we wanna drag them with it
 			const e = this.collideEntity(this.x, this.y, ['CHAR']);
-			if (
-				e != null &&
-				e != this.owner &&
-				e instanceof Grimey &&
-				!e.bubble
-			) {
-				e.bubble = this;
-				e.anim_state = -1;
-				e.graphic.scale = 0.5;
-				e.graphic.y = -30.0;
-				e.graphic.play('stuck');
+			if (e != null && e != this.owner && !e.bubble) {
+				if (e instanceof Boss) {
+					e.anim_state = -1;
+					e.dx = 20.0 * this.dir;
+					e.hurt(1);
+					e.graphic.play('stunned');
+					this.caught = e;
 
-				this.caught = e;
+					Sfx.play(assetManager.audio.get(ASSETS.POP));
+					this.scene.removeRenderable(this);
+					this.scene.removeEntity(this);
+					this.scene = null;
+				} else if (e instanceof Grimey) {
+					e.bubble = this;
+					e.hurt(1);
+					e.anim_state = -1;
+					e.graphic.scale = 0.4;
+					e.graphic.play('stuck');
+					this.caught = e;
+				}
 			}
 		}
 	}
@@ -222,9 +233,11 @@ class BubbleTrap extends Entity {
 
 class CoolScreen extends Entity {
 	fade = 0.0;
+	boss_txt = false;
 
-	constructor(txt, w, h) {
+	constructor(txt, w, h, boss_txt) {
 		super(w / 2, h / 2);
+		this.boss_txt = boss_txt;
 
 		this.graphic = new GraphicList();
 
@@ -234,7 +247,8 @@ class CoolScreen extends Entity {
 		this.graphic.add(this.bg);
 
 		this.txt = new Text(txt, 0, 0);
-		this.txt.size = 20.0;
+		this.txt.font = 'Skullboy';
+		this.txt.size = 32.0;
 		this.txt.scrollX = 0.0;
 		this.txt.centerOrigin();
 		this.graphic.add(this.txt);
@@ -245,6 +259,29 @@ class CoolScreen extends Entity {
 		this.fade += 1.0 / 60.0;
 		if (this.fade > 1.0) {
 			this.fade = 1.0;
+
+			if (this.boss_txt) {
+				screen_min = this.scene.room_start;
+				screen_max = this.scene.room_start + 400.0;
+
+				const e = new Boss(
+					this.scene.room_start +
+						this.scene.engine.canvas.width * 0.5,
+					this.scene.engine.canvas.height * 0.5,
+					assetManager,
+				);
+				this.scene.addEntity(e);
+				this.scene.addRenderable(e);
+
+				// kill overlay
+				this.scene.removeRenderable(this);
+				this.scene.removeEntity(this);
+				this.scene = null;
+			} else {
+				if (input.keyPressed(pauseKeys)) {
+					this.scene.engine.popScenes();
+				}
+			}
 		}
 
 		this.bg.alpha = this.fade;
@@ -261,7 +298,11 @@ class Character extends Entity {
 	anim_state = 0;
 	hitbox = null;
 
+	dx = 0;
+	dy = 0;
+
 	flipOffset = 0;
+	friction = 0.5;
 
 	constructor(x, y, asset, initialHealth) {
 		super(x, y);
@@ -269,23 +310,33 @@ class Character extends Entity {
 		this.health = initialHealth;
 
 		const h = 80.0;
-
 		this.collider = {
 			type: 'rect',
 			tag: 'CHAR',
-			x: -10,
-			y: -20,
-			w: 20,
-			h: 20,
+			x: -15,
+			y: -15,
+			w: 30,
+			h: 30,
 		};
 
-		this.graphic = new AnimatedSprite(asset, 80, 80);
-		this.graphic.centerOO();
-		this.graphic.originY = 0;
-		this.graphic.offsetY = 0;
-		this.graphic.y = -h;
+		if (asset) {
+			this.graphic = new AnimatedSprite(asset, 80, 80);
+			this.graphic.centerOO();
+			this.graphic.originY = 0;
+			this.graphic.offsetY = 0;
+			this.graphic.y = -h;
+			this.updateGraphic();
+		}
+	}
 
-		this.updateGraphic();
+	updateGraphic() {
+		this.graphic.x = this.getImageXOffset();
+		this.graphic.x += this.flip ? -this.flipOffset : this.flipOffset;
+	}
+
+	getImageXOffset() {
+		return 0;
+		return -(this.y - minY) + (centerY - minY);
 	}
 
 	onDeath() {
@@ -322,8 +373,29 @@ class Character extends Entity {
 	update(input) {
 		super.update(input);
 
-		this.depth = -this.y;
+		if (this.scene == null) {
+			return; // we just died
+		}
 
+		// friction
+		this.dx -= this.dx * this.friction;
+		this.dy -= this.dy * this.friction;
+
+		if (!(this instanceof Player)) {
+			this.x += this.collide(this.x + this.dx, this.y, 'CHAR')
+				? 0.0
+				: this.dx;
+			this.y += this.collide(this.x, this.y + this.dy, 'CHAR')
+				? 0.0
+				: this.dy;
+		} else {
+			this.x += this.dx;
+			this.y += this.dy;
+		}
+		this.x = Math.clamp(this.x, screen_min - 100.0, screen_max + 20.0);
+		this.y = Math.clamp(this.y, minY, maxY);
+
+		this.depth = -this.y;
 		this.updateGraphic();
 
 		if (this.invFrames > 0) {
@@ -367,34 +439,43 @@ class Hitbox extends Entity {
 	time = 0;
 	owner = null;
 	dmg = 0;
+	dir = 0;
 
-	constructor(o, d, x, y) {
+	constructor(o, d, x, y, dir) {
 		super(x, y);
+		this.dir = dir;
 		this.dmg = d;
 		this.owner = o;
 		this.collider = {
 			type: 'rect',
 			tag: 'HITBOX',
 			x: 0,
-			y: -5,
+			y: -30,
 			w: 20,
-			h: 30,
+			h: 60,
 		};
 
-		this.time = 20;
+		this.time = 30;
 	}
 
 	update(input) {
 		if (this.time <= 10) {
-			const e = this.collideEntity(this.x, this.y, ['CHAR']);
-			if (e != null && e != this.owner && e instanceof Character) {
-				if (e.hurt(this.dmg)) {
-					const asset = assetManager.audio.get(
-						random.choose(punch_sfx),
-					);
-					Sfx.play(asset);
+			const ents = this.collideEntities(this.x, this.y, ['CHAR']);
+			ents.forEach((e) => {
+				if (e != null && e != this.owner && e instanceof Character) {
+					if (e.hurt(this.dmg)) {
+						if (e.health == 0) {
+							e.dx = 30.0 * this.dir;
+							e.friction = 0.2;
+						}
+
+						const asset = assetManager.audio.get(
+							random.choose(punch_sfx),
+						);
+						Sfx.play(asset);
+					}
 				}
-			}
+			});
 		}
 
 		this.time -= 1;
@@ -433,9 +514,10 @@ class Player extends Character {
 	onDeath() {
 		if (!over) {
 			var e = new CoolScreen(
-				'You fugging died!',
+				'GAME OVER!',
 				this.scene.engine.canvas.width,
 				this.scene.engine.canvas.height,
+				false,
 			);
 			this.scene.addEntity(e);
 			this.scene.addRenderable(e);
@@ -489,19 +571,15 @@ class Player extends Character {
 				this.bubbles -= 1;
 				this.bubble_ticks = 0;
 
-				var e = new BubbleTrap(
-					this.x,
-					this.y - 50.0,
-					this.flip ? -1.0 : 1.0,
-				);
+				var e = new BubbleTrap(this.x, this.y, this.flip ? -1.0 : 1.0);
 				this.scene.addEntity(e);
 				this.scene.addRenderable(e);
 			}
 
 			if (input.keyPressed(' ')) {
-				var xx = this.x + (this.flip ? -30.0 : 10.0);
+				var xx = this.x + (this.flip ? -40.0 : 20.0);
 
-				var e = new Hitbox(this, 2, xx, this.y - 20.0);
+				var e = new Hitbox(this, 2, xx, this.y, this.flip ? -1.0 : 1.0);
 				this.scene.addEntity(e);
 				this.scene.addRenderable(e);
 				this.hitbox = e;
@@ -560,6 +638,107 @@ class Player extends Character {
 	}
 }
 
+class Boss extends Character {
+	constructor(x, y, assetManager) {
+		const asset = assetManager.sprites.get('grimeboss.png');
+		super(x, y, null, 20);
+
+		const h = 96.0;
+		this.graphic = new AnimatedSprite(asset, 80, 96);
+		this.graphic.centerOO();
+		this.graphic.originY = 0;
+		this.graphic.offsetY = 0;
+		this.graphic.y = -h;
+		this.updateGraphic();
+
+		this.collider = {
+			type: 'rect',
+			tag: 'CHAR',
+			x: -20,
+			y: -30,
+			w: 40,
+			h: 40,
+		};
+
+		this.graphic.add('idle', [0], 60);
+		this.graphic.add('walk', [0, 1, 2, 3], 20);
+		this.graphic.add('punch', [6, 7, 8], 8, false);
+		this.graphic.add('death', [18, 19, 20], 60, false);
+		this.graphic.add('stunned', [19], 30, false);
+
+		this.graphic.play('idle');
+
+		this.flipOffset = 10;
+	}
+
+	onDeath() {
+		if (!over) {
+			var e = new CoolScreen(
+				'YOU WON!',
+				this.scene.engine.canvas.width,
+				this.scene.engine.canvas.height,
+				false,
+			);
+			this.scene.addEntity(e);
+			this.scene.addRenderable(e);
+
+			over = true;
+		}
+
+		super.onDeath();
+	}
+
+	update(input) {
+		if (this.invFrames > 0) {
+			this.friction = 0.3;
+			super.update(input);
+			return;
+		}
+		this.friction = 0.5;
+
+		if (this.hitbox !== null) {
+			// hitbox died, we can hit again
+			if (!this.hitbox.scene) {
+				this.hitbox = null;
+			}
+		} else {
+			var xx = this.scene.player.x - this.x;
+			var yy = this.scene.player.y - this.y;
+			var dist = Math.max(Math.abs(xx), Math.abs(yy));
+
+			var next_state = 0;
+			if (dist > 45.0) {
+				const speed = 0.9;
+				this.dx += Math.sign(this.scene.player.x - this.x) * speed;
+				this.dy += Math.sign(this.scene.player.y - this.y) * speed;
+				this.flip = this.dx ? this.dx < 0 : this.dy < 0;
+
+				next_state = 1;
+			} else {
+				var xx = this.x + (this.flip ? -40.0 : 20.0);
+
+				var e = new Hitbox(this, 1, xx, this.y, this.flip ? -1.0 : 1.0);
+				this.scene.addEntity(e);
+				this.scene.addRenderable(e);
+				this.hitbox = e;
+				next_state = 2;
+			}
+
+			if (this.anim_state != next_state) {
+				this.graphic.play(states2anim[next_state]);
+				this.anim_state = next_state;
+			}
+
+			if (this.x < this.scene.player.x - 400.0) {
+				console.log('Offscreened!');
+				super.onDeath();
+			}
+		}
+
+		super.update(input);
+	}
+}
+
 class Grimey extends Character {
 	death_fade = 0.0;
 
@@ -573,7 +752,7 @@ class Grimey extends Character {
 		this.graphic.add('death', [12, 13, 14], 60, false);
 		this.graphic.add('stuck', [14], 60, false);
 
-		this.flipOffset = 24;
+		this.flipOffset = 10;
 	}
 
 	onDeath() {
@@ -586,6 +765,8 @@ class Grimey extends Character {
 
 	update(input) {
 		if (this.health == 0) {
+			super.update(input);
+
 			if (this.graphic.frame == 2) {
 				this.death_fade += 0.33 / 60.0;
 				this.graphic.alpha = 1.0 - this.death_fade;
@@ -599,21 +780,24 @@ class Grimey extends Character {
 		} else if (this.bubble != null) {
 			this.x = this.bubble.x;
 			this.y = this.bubble.y;
+			this.graphic.x = 0.0;
+			this.graphic.y = this.bubble.graphic.y - 30.0;
 			return;
 		}
 
-		if (this.hitbox !== null) {
+		if (this.hitbox) {
 			// hitbox died, we can hit again
 			if (!this.hitbox.scene) {
+				this.anim_state = -1;
 				this.hitbox = null;
 			}
 		} else {
 			var xx = this.scene.player.x - this.x;
 			var yy = this.scene.player.y - this.y;
-			var dist = Math.sqrt(xx * xx + yy * yy);
+			var dist = Math.max(Math.abs(xx), Math.abs(yy));
 
 			var next_state = 0;
-			if (dist > 25.0) {
+			if (dist > 45.0) {
 				const speed = 0.5;
 				var dx = Math.sign(this.scene.player.x - this.x) * speed;
 				var dy = Math.sign(this.scene.player.y - this.y) * speed;
@@ -627,9 +811,9 @@ class Grimey extends Character {
 
 				next_state = 1;
 			} else {
-				var xx = this.x + (this.flip ? -30.0 : 10.0);
+				var xx = this.x + (this.flip ? -40.0 : 20.0);
 
-				var e = new Hitbox(this, 1, xx, this.y - 20.0);
+				var e = new Hitbox(this, 1, xx, this.y, this.flip ? -1.0 : 1.0);
 				this.scene.addEntity(e);
 				this.scene.addRenderable(e);
 				this.hitbox = e;
@@ -977,7 +1161,17 @@ class Level extends Scene {
 
 	furthest_room = 0;
 	room_start = 0.0;
-	rooms = [320.0, 320.0, 320.0, 400.0];
+	rooms = [320.0, 320.0, 320.0, 320.0];
+
+	blur() {
+		if (!over) {
+			this.pauseGame();
+		}
+	}
+
+	pauseGame() {
+		this.engine.pushScene(new PauseScreen(this.engine));
+	}
 
 	blur() {
 		this.pauseGame();
@@ -990,7 +1184,7 @@ class Level extends Scene {
 	update(input) {
 		super.update(input);
 
-		if (input.keyPressed(pauseKeys)) {
+		if (!over && input.keyPressed(pauseKeys)) {
 			this.pauseGame();
 		}
 
@@ -1002,6 +1196,7 @@ class Level extends Scene {
 						'You fugging won!',
 						this.engine.canvas.width,
 						this.engine.canvas.height,
+						true,
 					);
 					this.addEntity(e);
 					this.addRenderable(e);
@@ -1077,6 +1272,7 @@ Object.values(ASSETS).forEach((asset) => {
 			break;
 	}
 });
+
 assetManager.onLoad(() => {
 	if (game) return;
 
