@@ -323,6 +323,8 @@ class CoolScreen extends Entity {
 		} else {
 			this.bg.alpha = this.fade;
 		}
+
+		this.visible = !settings.hideOverlay;
 	}
 }
 
@@ -579,6 +581,8 @@ class Player extends Character {
 			return;
 		}
 
+		if (settings.invincible) this.health = 10;
+
 		if (this.bubbles < 3) {
 			this.bubble_ticks += 1;
 			if (this.bubble_ticks > 120) {
@@ -635,8 +639,6 @@ class Player extends Character {
 				this.anim_state = next_state;
 			}
 		}
-
-		this.depth = -this.y;
 
 		super.update(input);
 	}
