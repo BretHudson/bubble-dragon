@@ -14,7 +14,7 @@ body {
 
 .canvas-lord {
 	width: 100%;
-	max-width: 656px;
+	max-width: calc(960px + 16px);
 	margin: 0 auto;
 	&:focus-within canvas {
 		border-color: #bbf;
@@ -149,7 +149,7 @@ canvas {
 	box-sizing: content-box;
 	display: block;
 	width: 100%;
-	max-width: 640px;
+	max-width: 960px;
 	margin: 0 auto;
 	padding: 5px;
 	border: 3px solid #ddd;
