@@ -1079,7 +1079,7 @@ class Level extends Scene {
 		const canvasSize = new Vec2(engine.canvas.width, engine.canvas.height);
 		const canvasCenter = canvasSize.scale(0.5);
 
-		const p = new Player(1200.0, 400.0, assetManager);
+		const p = new Player(canvasCenter.x, 400.0, assetManager);
 		this.player = p;
 
 		const cameraManager = new CameraManager(this.player);
