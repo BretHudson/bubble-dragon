@@ -64,6 +64,7 @@ export const Draw = {
     }),
     line: moveCanvas((ctx, options, x1, y1, x2, y2) => {
         initTempCanvas(ctx);
+		ctx.strokeStyle = options.color;
         ctx.translate(0.5, 0.5);
         ctx.beginPath();
         ctx.moveTo(x1, y1);
@@ -162,7 +163,9 @@ export const Draw = {
                 break;
         }
         if (!text.width) {
-            ctx[func](str, drawX, drawY);
+			let _str = str;
+			if (count !== undefined) _str = str.slice(0, count);
+            ctx[func](_str, drawX, drawY);
             return;
         }
         if (text.width <= 0)

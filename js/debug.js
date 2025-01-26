@@ -13,13 +13,17 @@ const types = {
 	autoLevel: 'checkbox',
 	showCamera: 'checkbox',
 	showHitboxes: 'checkbox',
+	invincible: 'checkbox',
+	hideOverlay: 'checkbox',
 	seed: 'checkbox',
+	playerSpeed: 'number',
 	cameraInner: 'number',
 	cameraOuter: 'number',
 	cameraSpeed: 'number',
 };
 
 const values = {
+	playerSpeed: { min: 1, max: 10, step: 1 },
 	cameraInner: { min: 0, max: 500, step: 1 },
 	cameraOuter: { min: 0, max: 500, step: 1 },
 	cameraSpeed: { min: 0, max: 100, step: 0.1 },

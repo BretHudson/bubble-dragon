@@ -109,6 +109,8 @@ export class Text extends Graphic {
         textCtx.textBaseline = baseline;
         const metrics = textCtx.measureText(this.str);
         const height = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent;
+		this.width = metrics.width;
+		this.height = height;
         this.offsetX = -metrics.width / 2;
         this.offsetY = -height / 2;
         textCtx.restore();
@@ -276,12 +278,14 @@ export class AnimatedSprite extends Graphic {
             const { frames, frameRate } = this.currentAnimation;
             this.frame = Math.floor(this.inc / frameRate) % frames.length;
             this.frameId = frames[this.frame];
-            ++this.inc;
+            if (this.currentAnimation.loop || this.frame != frames.length-1) {
+                ++this.inc;
+            }
         }
     }
     render(ctx, camera) {
         const { frameId, frameW, frameH } = this;
-        this.framesPerRow = this.imageSrc.width / frameW;
+        this.framesPerRow = Math.floor(this.imageSrc.width / frameW);
         const sourceX = (frameId % this.framesPerRow) * frameW;
         const sourceY = Math.floor(frameId / this.framesPerRow) * frameH;
         const x = this.x - camera.x * this.scrollX + (this.parent?.x ?? 0);
