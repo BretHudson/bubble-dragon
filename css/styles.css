@@ -16,18 +16,31 @@ body {
 
 .canvas-lord {
 	width: 100%;
-	padding: 5px;
-	border: 3px solid #ddd;
 	max-width: calc(var(--canvas-size) + 16px);
 	margin: 0 auto;
 	background: black;
-	canvas {
-		padding: 0;
-		border: 0;
-		width: var(--canvas-size);
-	}
-	&:focus-within {
+
+	&:focus-within canvas {
 		border-color: #bbf;
+	}
+}
+
+#cabinet {
+	.canvas-lord {
+		width: 100%;
+		padding: 5px;
+		border: 3px solid #ddd;
+		max-width: calc(var(--canvas-size) + 16px);
+		margin: 0 auto;
+		background: black;
+		canvas {
+			padding: 0;
+			border: 0;
+			width: var(--canvas-size);
+		}
+		&:focus-within {
+			border-color: #bbf;
+		}
 	}
 }
 
@@ -40,7 +53,8 @@ body {
 	text-align: right;
 	display: grid;
 	grid-template-columns: 20ch auto;
-	width: 100%;
+	width: calc(var(--canvas-size) + 6px);
+	max-width: 100%;
 	margin: 0 auto;
 	gap: 2px 0.5rem;
 	padding: 0.5rem;
@@ -69,6 +83,11 @@ body {
 	max-width: 98%;
 
 	transition: background-color 0.3s;
+
+	canvas {
+		width: calc(var(--canvas-size) + 16px);
+		box-sizing: border-box;
+	}
 
 	&:has(.canvas-lord:focus-within) {
 		--cabinet-color: #67aac955;
@@ -175,8 +194,9 @@ main::after {
 canvas {
 	background: black;
 	display: block;
+	box-sizing: content-box;
 	border: 3px solid #ddd;
-	width: calc(var(--canvas-size) + 16px);
+	width: var(--canvas-size);
 	max-width: 100%;
 	margin: 0 auto;
 	image-rendering: -moz-crisp-edges;
