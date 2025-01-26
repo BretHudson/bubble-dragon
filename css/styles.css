@@ -5,6 +5,8 @@
 }
 
 body {
+	--canvas-size: 960px;
+
 	padding: 1rem 0;
 	display: flex;
 	flex-direction: column;
@@ -14,12 +16,32 @@ body {
 
 .canvas-lord {
 	width: 100%;
-	max-width: calc(1280px + 16px);
+	max-width: calc(var(--canvas-size) + 16px);
 	margin: 0 auto;
+	background: black;
+
 	&:focus-within canvas {
 		border-color: #bbf;
 	}
-	background: black;
+}
+
+#cabinet {
+	.canvas-lord {
+		width: 100%;
+		padding: 5px;
+		border: 3px solid #ddd;
+		max-width: calc(var(--canvas-size) + 16px);
+		margin: 0 auto;
+		background: black;
+		canvas {
+			padding: 0;
+			border: 0;
+			width: var(--canvas-size);
+		}
+		&:focus-within {
+			border-color: #bbf;
+		}
+	}
 }
 
 .canvas-lord:has(.inspector) {
@@ -31,7 +53,8 @@ body {
 	text-align: right;
 	display: grid;
 	grid-template-columns: 20ch auto;
-	width: 100%;
+	width: calc(var(--canvas-size) + 6px);
+	max-width: 100%;
 	margin: 0 auto;
 	gap: 2px 0.5rem;
 	padding: 0.5rem;
@@ -52,25 +75,49 @@ body {
 
 #cabinet {
 	--inset: 40px;
-	background: #67aac9;
-	width: 1400px;
-	header {
-		background: #2c7596;
-		padding: 1.5rem;
-		div {
-			background: #2c7596;
-			/* border: 4px solid white; */
+	--cabinet-color: #67aac9;
+	--header-color: #2c7596;
+
+	background-color: var(--cabinet-color);
+	width: calc(var(--canvas-size) + 160px);
+	max-width: 98%;
+
+	transition: background-color 0.3s;
+
+	canvas {
+		width: calc(var(--canvas-size) + 16px);
+		box-sizing: border-box;
+	}
+
+	&:has(.canvas-lord:focus-within) {
+		--cabinet-color: #67aac955;
+		--header-color: #2c759644;
+
+		header img {
+			filter: drop-shadow(0 0 8px #ffffffaa)
+				drop-shadow(0 0 8px #ffffffaa);
 		}
-		/* background: rgba(0, 0, 0, 0.2); */
+	}
+
+	header {
+		background: var(--header-color);
+
+		transition: background-color 0.3s;
+		padding: 1.5rem;
 		img {
 			display: block;
 			margin: 0 auto;
+			filter: drop-shadow(0 0 0px transparent)
+				drop-shadow(0 0 0px transparent);
+
+			transition: filter 0.3s;
 		}
 	}
 	main {
 		position: relative;
 		background: rgba(0, 0, 0, 0.2);
 		padding-block: 2rem;
+		padding-inline: calc(2rem + var(--inset));
 	}
 	footer {
 		height: 200px;
@@ -146,13 +193,12 @@ main::after {
 
 canvas {
 	background: black;
-	box-sizing: content-box;
 	display: block;
-	width: 100%;
-	max-width: 1280px;
-	margin: 0 auto;
-	padding: 5px;
+	box-sizing: content-box;
 	border: 3px solid #ddd;
+	width: var(--canvas-size);
+	max-width: 100%;
+	margin: 0 auto;
 	image-rendering: -moz-crisp-edges;
 	image-rendering: -webkit-crisp-edges;
 	image-rendering: pixelated;

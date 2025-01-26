@@ -5,6 +5,7 @@ import {
 	Scene,
 	Entity,
 	Draw,
+	Tileset,
 } from './canvas-lord/canvas-lord.js';
 import { Vec2 } from './canvas-lord/util/math.js';
 import { Random } from './canvas-lord/util/random.js';
@@ -77,7 +78,7 @@ const ASSETS = {
 	BG_CLOUD: 'bg_1_clouds.png', // static
 	BG_PYRAMIDS: 'pyramids.png', // parallax
 	BG_SKYSCRAPERS: 'parallax_parts_skyscrapers.png', // parallax
-	BG_FG: 'parallax_parts_fg.png', // parallax
+	BG_FG: 'parallax_parts_fg.png', // tiled
 
 	// menu
 	LOGO: 'logo.png',
@@ -98,8 +99,9 @@ const ASSETS = {
 
 const DEPTH = {
 	BACKGROUND: 1000,
-	BUILDINGS: 100,
+	SKYSCRAPERS: 100,
 	TILES: 10,
+	BUILDINGS: 9,
 	OVERLAY: -1000,
 	CAMERA: -Infinity,
 };
@@ -122,7 +124,7 @@ class Tiles extends Entity {
 
 		const asset = assetManager.sprites.get(ASSETS.FLOOR_PNG);
 		this.graphic = new GraphicList();
-		this.depth = ASSETS.TILES;
+		this.depth = DEPTH.TILES;
 
 		const { width, height } = asset;
 
@@ -809,7 +811,7 @@ let buildingIndices;
 	});
 }
 
-class Buildings extends Entity {
+class Skyscrapers extends Entity {
 	constructor(xOffset) {
 		super(xOffset * buildingW, 0);
 
@@ -820,7 +822,7 @@ class Buildings extends Entity {
 			buildingW,
 			540,
 		);
-		this.depth = DEPTH.BUILDINGS;
+		this.depth = DEPTH.SKYSCRAPERS;
 		this.graphic.centerOO();
 
 		this.graphic.scrollX = 0.25;
@@ -853,6 +855,86 @@ class Buildings extends Entity {
 		if (x > buildingW * 4) {
 			this.x -= buildingW * 5;
 			this.id -= 5;
+		}
+	}
+}
+
+class Buildings extends Entity {
+	constructor() {
+		super(65, 60);
+
+		const asset = assetManager.sprites.get(ASSETS.BG_FG);
+
+		const tileW = 64;
+		const tileH = 64;
+
+		const totalWidth = [320.0, 320.0, 320.0, 320.0].reduce(
+			(a, v) => a + v,
+			0,
+		);
+		console.log(totalWidth);
+		const tileset = new Tileset(
+			asset,
+			totalWidth * 50,
+			asset.height,
+			tileW,
+			tileH,
+		);
+		this.graphic = tileset;
+		this.graphic.entity = this;
+
+		this.depth = DEPTH.BUILDINGS;
+
+		const building1 = [0, 0, 4, 2];
+		const building2 = [4, 0, 5, 2];
+		const empty = [0, 6, 1, 1];
+
+		const billboards = Array.from({ length: 8 }, (_, i) => {
+			return [i % 5, 2 + Math.floor(i / 5), 1, 1];
+		});
+
+		const renderBuilding = (_x, _y, building) => {
+			const [startX, startY, w, h] = building;
+			console.log({ startX, startY, w, h });
+
+			for (let y = 0; y < h; ++y) {
+				for (let x = 0; x < w; ++x) {
+					tileset.setTile(_x + x, _y + y, startX + x, startY + y);
+				}
+			}
+		};
+
+		let xPos = 0;
+
+		const baseArr = [
+			empty,
+			empty,
+			empty,
+			empty,
+			empty,
+			empty,
+			empty,
+			empty,
+			building1,
+			building1,
+			building1,
+			building1,
+			building2,
+			building2,
+			building2,
+			building2,
+			...billboards,
+		];
+
+		const random = new Random(23947);
+		for (let i = 0; i < 4; ++i) {
+			const arr = [...baseArr];
+			while (arr.length) {
+				const [structure] = arr.splice(random.float(arr.length), 1);
+				const [x, y, w, h] = structure;
+				renderBuilding(xPos, 2 - h, structure);
+				xPos += w;
+			}
 		}
 	}
 }
@@ -922,13 +1004,7 @@ class Level extends Scene {
 
 		const tiles = new Tiles(assetManager);
 
-		const entities = [
-			ASSETS.BG_SUNSET,
-			ASSETS.BG_CLOUD,
-			ASSETS.BG_PYRAMIDS,
-			// ASSETS.BG_SKYSCRAPERS,
-			// ASSETS.BG_FG,
-		]
+		const entities = [ASSETS.BG_SUNSET, ASSETS.BG_CLOUD, ASSETS.BG_PYRAMIDS]
 			.map((asset) => assetManager.sprites.get(asset))
 			.map((sprite) => {
 				const entity = new Entity(
@@ -947,10 +1023,14 @@ class Level extends Scene {
 		entities[2].graphic.scrollX = 0.025;
 
 		for (let i = 0; i < 5; ++i) {
-			const buildings = new Buildings(i);
-			this.addEntity(buildings);
-			this.addRenderable(buildings);
+			const skyscrapers = new Skyscrapers(i);
+			this.addEntity(skyscrapers);
+			this.addRenderable(skyscrapers);
 		}
+
+		const buildings = new Buildings();
+		this.addEntity(buildings);
+		this.addRenderable(buildings);
 
 		[...entities, tiles, p, cameraManager].forEach((e) => {
 			this.addEntity(e);

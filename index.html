@@ -7,12 +7,24 @@
 		<link rel="stylesheet" href="./css/styles.css" media="screen" />
 	</head>
 	<body>
-		<canvas
-			id="ggj-2025-game"
-			width="480px"
-			height="360px"
-			tabindex="-1"
-		></canvas>
+		<div id="cabinet">
+			<header>
+				<div>
+					<img src="./img/big-logo.png" width="640px" alt="" />
+				</div>
+			</header>
+			<div id="top"></div>
+			<main>
+				<canvas
+					id="ggj-2025-game"
+					width="480px"
+					height="360px"
+					tabindex="-1"
+				></canvas>
+			</main>
+			<div id="bottom"></div>
+			<footer></footer>
+		</div>
 
 		<script type="module" src="js/game.js"></script>
 	</body>
