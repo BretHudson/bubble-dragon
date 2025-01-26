@@ -149,6 +149,11 @@ class Hitbox extends Entity {
 	}
 }
 
+const keysU = ['w', 'W', 'ArrowUp'];
+const keysD = ['s', 'S', 'ArrowDown'];
+const keysL = ['a', 'A', 'ArrowLeft'];
+const keysR = ['d', 'D', 'ArrowRight'];
+
 class Mole extends Character {
 	flip = false;
 	hitbox = null;
@@ -170,8 +175,14 @@ class Mole extends Character {
 		};
 
 		this.graphic = new AnimatedSprite(asset, 44, 79);
-		this.graphic.originY = -h;
+		this.graphic.centerOO();
+		this.graphic.originY = 0;
+		this.graphic.offsetY = 0;
+		this.graphic.y = -h;
 		this.graphic.scale = scale;
+
+		this.collider.x = this.graphic.x + this.graphic.originX;
+		this.collider.y = this.graphic.y + this.graphic.originY;
 
 		this.graphic.add('idle', [0], 60);
 		this.graphic.add('walk', [0, 1, 2, 3], 8);
@@ -180,10 +191,9 @@ class Mole extends Character {
 	update(input) {
 		super.update(input);
 
-		const speed = 2.0;
-		var nx = this.x;
-		var ny = this.y;
-		var walking = false;
+		let walking = false;
+		const minY = 150;
+		const maxY = 400;
 
 		if (this.hitbox !== null) {
 			// hitbox died, we can hit again
@@ -191,45 +201,22 @@ class Mole extends Character {
 				this.hitbox = null;
 			}
 		} else {
-			if (input.keyCheck('w')) {
-				ny -= speed;
-				walking = true;
-				this.flip = true;
+			const speed = 2.0;
+			let moveVec = new Vec2(0, 0);
 
-				if (ny < 20.0) {
-					ny = 20.0;
-				}
-			} else if (input.keyCheck('s')) {
-				ny += speed;
-				walking = true;
-				this.flip = false;
+			moveVec.x = +input.keyCheck(keysR) - +input.keyCheck(keysL);
+			moveVec.y = +input.keyCheck(keysD) - +input.keyCheck(keysU);
 
-				if (ny > 100.0) {
-					ny = 100.0;
-				}
+			if (moveVec.magnitude > 0) {
+				moveVec = moveVec.scale(speed);
+				walking = true;
+				this.flip = moveVec.x ? moveVec.x < 0 : moveVec.y < 0;
 			}
 
-			if (input.keyCheck('a')) {
-				nx -= speed;
-				walking = true;
-				this.flip = true;
-			} else if (input.keyCheck('d')) {
-				nx += speed;
-				walking = true;
-				this.flip = false;
-			}
+			this.x += speed * moveVec.x;
+			this.y += speed * moveVec.y;
+			this.y = Math.clamp(this.y, minY, maxY);
 		}
-
-		this.x = nx;
-		this.y = ny;
-
-		/* if (!this.collide(nx, this.y)) {
-			this.x = nx;
-		}
-
-		if (!this.collide(this.x, ny)) {
-			this.y = ny;
-		} */
 
 		if (this.hitbox == null && input.keyPressed(' ')) {
 			var xx = this.x + this.y * 0.25;
@@ -243,14 +230,24 @@ class Mole extends Character {
 
 		this.graphic.play(walking ? 'walk' : 'idle');
 		this.depth = -this.y;
+
+		this.graphic.x = -(this.y - minY) * 0.25;
 	}
 
 	render(ctx, camera) {
 		this.graphic.scaleX = this.flip ? -1.0 : 1.0;
 
-		var off_x = this.flip ? 44 : 0;
-		this.collider.x = this.y * 0.25;
-		this.graphic.x = this.y * 0.25 + off_x;
+		const drawX = this.x + this.graphic.x - camera.x;
+		const drawY = this.y - camera.y;
+
+		const r = 12;
+		const circleOptions = {
+			type: 'fill',
+			color: '#88888888',
+			radius: r,
+			scaleX: 2,
+		};
+		Draw.circle(ctx, circleOptions, drawX - r * 2, drawY - r, r);
 
 		super.render(ctx, camera);
 
@@ -470,6 +467,15 @@ class Level extends Scene {
 		if (settings.showHitboxes) {
 			this.entities.inScene.forEach((e) => {
 				if (!e.collider) return;
+
+				const r = 3;
+				Draw.circle(
+					ctx,
+					{ type: 'fill', color: 'lime' },
+					e.x - r - camera.x,
+					e.y - r - camera.y,
+					r,
+				);
 				switch (e.collider.type) {
 					case 'rect':
 						Draw.rect(
