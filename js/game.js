@@ -26,11 +26,11 @@ const defaultSettings = {
 	cameraOuter: 132,
 	cameraSpeed: 10,
 };
-const settings = Object.assign(
-	{},
-	defaultSettings,
-	JSON.parse(localStorage.getItem('settings')) ?? {},
-);
+let localStorageSettings = {};
+if (window.debugEnabled) {
+	localStorageSettings = JSON.parse(localStorage.getItem('settings')) ?? {};
+}
+const settings = Object.assign({}, defaultSettings, localStorageSettings);
 
 const minY = 280;
 const maxY = 380;
@@ -146,8 +146,6 @@ class BubbleTrap extends Entity {
 			w: 40,
 			h: 40,
 		};
-
-		console.log(x, y);
 	}
 
 	update(input) {
@@ -972,7 +970,7 @@ let buildingIndices;
 	});
 }
 
-class Buildings extends Entity {
+class Skyscrapers extends Entity {
 	constructor(xOffset) {
 		super(xOffset * buildingW, 0);
 
@@ -1017,6 +1015,84 @@ class Buildings extends Entity {
 		if (x > buildingW * 4) {
 			this.x -= buildingW * 5;
 			this.id -= 5;
+		}
+	}
+}
+
+class Buildings extends Entity {
+	constructor() {
+		super(65, 60);
+
+		const asset = assetManager.sprites.get(ASSETS.BG_FG);
+
+		const tileW = 64;
+		const tileH = 64;
+
+		const totalWidth = [320.0, 320.0, 320.0, 320.0].reduce(
+			(a, v) => a + v,
+			0,
+		);
+		const tileset = new Tileset(
+			asset,
+			totalWidth * 50,
+			asset.height,
+			tileW,
+			tileH,
+		);
+		this.graphic = tileset;
+		this.graphic.entity = this;
+
+		this.depth = DEPTH.BUILDINGS;
+
+		const building1 = [0, 0, 4, 2];
+		const building2 = [4, 0, 5, 2];
+		const empty = [0, 6, 1, 1];
+
+		const billboards = Array.from({ length: 8 }, (_, i) => {
+			return [i % 5, 2 + Math.floor(i / 5), 1, 1];
+		});
+
+		const renderBuilding = (_x, _y, building) => {
+			const [startX, startY, w, h] = building;
+
+			for (let y = 0; y < h; ++y) {
+				for (let x = 0; x < w; ++x) {
+					tileset.setTile(_x + x, _y + y, startX + x, startY + y);
+				}
+			}
+		};
+
+		let xPos = 0;
+
+		const baseArr = [
+			empty,
+			empty,
+			empty,
+			empty,
+			empty,
+			empty,
+			empty,
+			empty,
+			building1,
+			building1,
+			building1,
+			building1,
+			building2,
+			building2,
+			building2,
+			building2,
+			...billboards,
+		];
+
+		const random = new Random(23947);
+		for (let i = 0; i < 4; ++i) {
+			const arr = [...baseArr];
+			while (arr.length) {
+				const [structure] = arr.splice(random.float(arr.length), 1);
+				const [x, y, w, h] = structure;
+				renderBuilding(xPos, 2 - h, structure);
+				xPos += w;
+			}
 		}
 	}
 }
@@ -1112,10 +1188,14 @@ class Level extends Scene {
 		entities[2].graphic.scrollX = 0.025;
 
 		for (let i = 0; i < 5; ++i) {
-			const buildings = new Buildings(i);
-			this.addEntity(buildings);
-			this.addRenderable(buildings);
+			const skyscrapers = new Skyscrapers(i);
+			this.addEntity(skyscrapers);
+			this.addRenderable(skyscrapers);
 		}
+
+		const buildings = new Buildings();
+		this.addEntity(buildings);
+		this.addRenderable(buildings);
 
 		[...entities, tiles, p, cameraManager].forEach((e) => {
 			this.addEntity(e);
