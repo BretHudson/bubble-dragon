@@ -481,15 +481,17 @@ const buildingW = 960 / 6;
 
 let buildingIndices;
 {
-	const random = new Random(6465373);
+	const random = new Random(64673);
 	buildingIndices = Array.from({ length: 100 }, (_, i) => {
-		return i % 5;
+		return random.int(5);
 	});
 }
 
 class Buildings extends Entity {
 	constructor(xOffset) {
 		super(xOffset * buildingW, 0);
+
+		this.id = xOffset;
 
 		this.graphic = new AnimatedSprite(
 			assetManager.sprites.get(ASSETS.BG_SKYSCRAPERS),
@@ -507,22 +509,28 @@ class Buildings extends Entity {
 		this.graphic.add('3', [3], 100);
 		this.graphic.add('4', [4], 100);
 
-		const fuck = buildingIndices[xOffset].toString();
-		console.log(fuck);
-		this.graphic.play(fuck);
+		this.updateImage();
 		this.graphic.update();
+	}
+
+	updateImage() {
+		this.graphic.play(buildingIndices[this.id].toString());
 	}
 
 	update() {
 		const camera = this.scene.camera;
 		const scrollX = this.graphic.scrollX;
 		const w = buildingW / scrollX;
-		if (this.x / this.graphic.scrollX < camera.x - buildingW * scrollX) {
-			console.log('left');
+
+		const x = this.x - camera.x * scrollX;
+
+		if (x < -buildingW) {
 			this.x += buildingW * 5;
+			this.id += 5;
 		}
-		if (this.x / this.graphic.scrollX > camera.x + buildingW * 4) {
-			// this.x -= buildingW * 5;
+		if (x > buildingW * 4) {
+			this.x -= buildingW * 5;
+			this.id -= 5;
 		}
 	}
 }
