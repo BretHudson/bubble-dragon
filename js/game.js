@@ -251,15 +251,47 @@ class Character extends Entity {
 	anim_state = 0;
 	hitbox = null;
 
+	flipOffset = 0;
+
+	constructor(x, y, asset, initialHealth) {
+		super(x, y);
+
+		this.health = initialHealth;
+
+		const h = 80.0;
+
+		this.collider = {
+			type: 'rect',
+			tag: 'CHAR',
+			x: -10,
+			y: -20,
+			w: 20,
+			h: 20,
+		};
+
+		this.graphic = new AnimatedSprite(asset, 80, 80);
+		this.graphic.centerOO();
+		this.graphic.originY = 0;
+		this.graphic.offsetY = 0;
+		this.graphic.y = -h;
+
+		this.updateGraphic();
+	}
+
 	onDeath() {
 		this.scene.removeRenderable(this);
 		this.scene.removeEntity(this);
 		this.scene = null;
 	}
 
+	getImageXOffset() {
+		return 0;
+		return -(this.y - minY) + (centerY - minY);
+	}
+
 	updateGraphic() {
-		this.graphic.x = -(this.y - minY) + (centerY - minY);
-		this.graphic.x += this.flip ? -10 : 10;
+		this.graphic.x = this.getImageXOffset();
+		this.graphic.x += this.flip ? -this.flipOffset : this.flipOffset;
 	}
 
 	hurt(pts) {
@@ -280,12 +312,15 @@ class Character extends Entity {
 	update(input) {
 		super.update(input);
 
+		this.depth = -this.y;
+
 		this.updateGraphic();
 
 		if (this.invFrames > 0) {
 			this.invFrames -= 1;
 		}
 
+		this.graphic.scaleX = this.flip ? -1.0 : 1.0;
 		this.hitFlash = this.invFrames % 8 >= 4;
 	}
 
@@ -308,7 +343,7 @@ class Character extends Entity {
 				color: '#ffffff22',
 				type: 'stroke',
 			},
-			drawX - r * 2,
+			drawX - r * 2 + this.getImageXOffset(),
 			drawY - r,
 			r,
 		);
@@ -375,35 +410,14 @@ class Player extends Character {
 	bubbles = 3;
 
 	constructor(x, y, assetManager) {
-		super(x, y);
-		this.health = 10;
-
-		const scale = 1.0;
 		const asset = assetManager.sprites.get('mr_clean.png');
-		const w = 80.0 * scale;
-		const h = 80.0 * scale;
-
-		this.collider = {
-			type: 'rect',
-			tag: 'CHAR',
-			x: -10,
-			y: -20,
-			w: 20,
-			h: 20,
-		};
-
-		this.graphic = new AnimatedSprite(asset, 80, 80);
-		this.graphic.centerOO();
-		this.graphic.originY = 0;
-		this.graphic.offsetY = 0;
-		this.graphic.y = -h;
-		this.graphic.scale = scale;
+		super(x, y, asset, 10);
 
 		this.graphic.add('idle', [0], 60);
 		this.graphic.add('walk', [0, 1, 2, 3], 20);
 		this.graphic.add('punch', [4, 5, 6], 8);
 
-		this.updateGraphic();
+		this.flipOffset = 10;
 	}
 
 	onDeath() {
@@ -490,14 +504,10 @@ class Player extends Character {
 			}
 		}
 
-		this.depth = -this.y;
-
 		super.update(input);
 	}
 
 	render(ctx, camera) {
-		this.graphic.scaleX = this.flip ? -1.0 : 1.0;
-
 		super.render(ctx, camera);
 
 		const rectOptions = {
@@ -544,29 +554,8 @@ class Grimey extends Character {
 	death_fade = 0.0;
 
 	constructor(x, y, assetManager) {
-		super(x, y);
-
-		const scale = 1.0;
 		const asset = assetManager.sprites.get('badguy.png');
-		const w = 80.0 * scale;
-		const h = 80.0 * scale;
-
-		this.collider = {
-			type: 'rect',
-			tag: 'CHAR',
-			x: -10,
-			y: -20,
-			w: 20,
-			h: 20,
-		};
-		this.health = 6;
-
-		this.graphic = new AnimatedSprite(asset, 80, 80);
-		this.graphic.centerOO();
-		this.graphic.originY = 0;
-		this.graphic.offsetY = 0;
-		this.graphic.y = -h;
-		this.graphic.scale = scale;
+		super(x, y, asset, 6);
 
 		this.graphic.add('idle', [0], 60);
 		this.graphic.add('walk', [0, 1, 2, 3], 20);
@@ -574,7 +563,7 @@ class Grimey extends Character {
 		this.graphic.add('death', [12, 13, 14], 60, false);
 		this.graphic.add('stuck', [14], 60, false);
 
-		this.updateGraphic();
+		this.flipOffset = 24;
 	}
 
 	onDeath() {
@@ -586,8 +575,6 @@ class Grimey extends Character {
 	}
 
 	update(input) {
-		this.depth = -this.y;
-
 		if (this.health == 0) {
 			if (this.graphic.frame == 2) {
 				this.death_fade += 0.33 / 60.0;
@@ -644,21 +631,13 @@ class Grimey extends Character {
 				this.anim_state = next_state;
 			}
 
-			if (this.x + 400.0 < this.scene.player.x) {
+			if (this.x < this.scene.player.x - 400.0) {
 				console.log('Offscreened!');
 				super.onDeath();
 			}
 		}
 
-		this.graphic.scaleX = this.flip ? -1.0 : 1.0;
-
 		super.update(input);
-	}
-
-	render(ctx, camera) {
-		// this.graphic.x = -(this.y - minY) + (this.flip ? -10 : 10);
-		this.graphic.x = this.flip ? -10 : 10;
-		super.render(ctx, camera);
 	}
 }
 
