@@ -368,6 +368,7 @@ class Character extends Entity {
 	}
 
 	updateGraphic() {
+		this.graphic.scaleX = this.flip ? -1.0 : 1.0;
 		this.graphic.x = this.getImageXOffset();
 		this.graphic.x += this.flip ? -this.flipOffset : this.flipOffset;
 	}
@@ -646,7 +647,6 @@ class Player extends Character {
 	render(ctx, camera) {
 		// this.graphic.x = -(this.y - minY);
 		this.graphic.x = this.flip ? -10 : 10;
-		this.graphic.scaleX = this.flip ? -1.0 : 1.0;
 
 		const drawX = this.x - camera.x;
 		const drawY = this.y - camera.y;
@@ -915,8 +915,6 @@ class Grimey extends Character {
 			}
 		}
 
-		this.graphic.scaleX = this.flip ? -1.0 : 1.0;
-
 		super.update(input);
 	}
 
@@ -936,7 +934,7 @@ class CameraManager extends Entity {
 	constructor(follow) {
 		super(0, 0);
 		this.follow = follow;
-		this.depth = -Infinity;
+		this.depth = DEPTH.CAMERA;
 		this.updateSettings();
 	}
 
@@ -1038,7 +1036,6 @@ class Skyscrapers extends Entity {
 		);
 		this.depth = DEPTH.SKYSCRAPERS;
 		this.graphic.centerOO();
-		this.y = 50.0;
 
 		this.graphic.scrollX = 0.25;
 
@@ -1249,9 +1246,9 @@ class Level extends Scene {
 			this.addRenderable(skyscrapers);
 		}
 
-		// const buildings = new Buildings();
-		// this.addEntity(buildings);
-		// this.addRenderable(buildings);
+		const buildings = new Buildings();
+		this.addEntity(buildings);
+		this.addRenderable(buildings);
 
 		[...entities, tiles, p, cameraManager].forEach((e) => {
 			this.addEntity(e);
