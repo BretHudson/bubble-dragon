@@ -39,10 +39,10 @@ var death_screen = false;
 
 // delete old keys
 Object.keys(settings).forEach((key) => {
-	if (!(key in defaultSettings)) {
-		delete settings[key];
-	}
-});
+		if (!(key in defaultSettings)) {
+			delete settings[key];
+		}
+	});
 
 const ASSETS = {
 	MRCLEAN_PNG: 'mr_clean.png',
@@ -50,6 +50,13 @@ const ASSETS = {
 	BG_PNG: 'bg.png',
 	BG2_PNG: 'bg2.png',
 	FLOORS_PNG: 'floors.png',
+
+	// backgrounds
+	BG_SUNSET: 'bg_0_sunset.png', // static
+	BG_CLOUD: 'bg_1_clouds.png', // static
+	BG_PYRAMIDS: 'pyramids.png', // parallax
+	BG_SKYSCRAPERS: 'parallax_parts_skyscrapers.png', // parallax
+	BG_FG: 'parallax_parts_fg.png', // parallax
 
 	// menu
 	LOGO: 'logo.png',
@@ -528,6 +535,58 @@ class CameraManager extends Entity {
 	}
 }
 
+const levelWidth = 320;
+
+const buildingW = 960 / 6;
+
+let buildingIndices;
+{
+	const random = new Random(6465373);
+	buildingIndices = Array.from({ length: 100 }, (_, i) => {
+			return i % 5;
+		});
+}
+
+class Buildings extends Entity {
+	constructor(xOffset) {
+		super(xOffset * buildingW, 0);
+
+		this.graphic = new AnimatedSprite(
+			assetManager.sprites.get(ASSETS.BG_SKYSCRAPERS),
+			buildingW,
+			540,
+		);
+		this.depth = -1;
+		this.graphic.centerOO();
+
+		this.graphic.scrollX = 0.25;
+
+		this.graphic.add('0', [0], 100);
+		this.graphic.add('1', [1], 100);
+		this.graphic.add('2', [2], 100);
+		this.graphic.add('3', [3], 100);
+		this.graphic.add('4', [4], 100);
+
+		const fuck = buildingIndices[xOffset].toString();
+		console.log(fuck);
+		this.graphic.play(fuck);
+		this.graphic.update();
+	}
+
+	update() {
+		const camera = this.scene.camera;
+		const scrollX = this.graphic.scrollX;
+		const w = buildingW / scrollX;
+		if (this.x / this.graphic.scrollX < camera.x - buildingW * scrollX) {
+			console.log('left');
+			this.x += buildingW * 5;
+		}
+		if (this.x / this.graphic.scrollX > camera.x + buildingW * 4) {
+			// this.x -= buildingW * 5;
+		}
+	}
+}
+
 class Level extends Scene {
 	constructor(engine) {
 		super(engine);
@@ -543,10 +602,51 @@ class Level extends Scene {
 		const bg2 = new Background(ASSETS.BG2_PNG, canvasSize.y, assetManager);
 		const bg = new Background(ASSETS.BG_PNG, canvasSize.y, assetManager);
 		const tiles = new Tiles(assetManager);
-		[bg, bg2, tiles, p, cameraManager].forEach((e) => {
-			this.addEntity(e);
-			this.addRenderable(e);
-		});
+
+		const entities = [
+			ASSETS.BG_SUNSET,
+			ASSETS.BG_CLOUD,
+			ASSETS.BG_PYRAMIDS,
+			// ASSETS.BG_SKYSCRAPERS,
+			// ASSETS.BG_FG,
+		]
+			.map((asset) => assetManager.sprites.get(asset))
+			.map((sprite) => {
+				const entity = new Entity(
+					engine.canvas.width >> 1,
+					(engine.canvas.height >> 1) - 80,
+				);
+				entity.graphic = new Sprite(sprite);
+				entity.graphic.scale = 0.5;
+				entity.graphic.centerOO();
+				console.log(entity.graphic);
+				return entity;
+			});
+
+		entities[0].graphic.scrollX = 0;
+		entities[1].graphic.scrollX = 0;
+		entities[2].graphic.scrollX = 0.025;
+		// entities[3].graphic.scrollX = 0.25;
+
+		for (let i = 0; i < 5; ++i) {
+			const buildings = new Buildings(i);
+			this.addEntity(buildings);
+			this.addRenderable(buildings);
+		}
+
+		// 0, 1, pyramids, sky, fg
+
+		[
+			...entities,
+			// bg,
+			// bg2,
+			// tiles,
+			p,
+			cameraManager,
+		].forEach((e) => {
+				this.addEntity(e);
+				this.addRenderable(e);
+			});
 	}
 
 	furthest_room = 0;
@@ -590,18 +690,18 @@ class Level extends Scene {
 
 		if (settings.showHitboxes) {
 			this.entities.inScene.forEach((e) => {
-				if (!e.collider) return;
+					if (!e.collider) return;
 
-				const r = 3;
-				Draw.circle(
-					ctx,
-					{ type: 'fill', color: 'lime' },
-					e.x - r - camera.x,
-					e.y - r - camera.y,
-					r,
-				);
-				switch (e.collider.type) {
-					case 'rect':
+					const r = 3;
+					Draw.circle(
+						ctx,
+						{ type: 'fill', color: 'lime' },
+						e.x - r - camera.x,
+						e.y - r - camera.y,
+						r,
+					);
+					switch (e.collider.type) {
+						case 'rect':
 						Draw.rect(
 							ctx,
 							{ type: 'stroke', color: 'red' },
@@ -611,10 +711,10 @@ class Level extends Scene {
 							e.collider.h,
 						);
 						break;
-					default:
+						default:
 						console.warn('not supported');
-				}
-			});
+					}
+				});
 		}
 	}
 }
@@ -622,37 +722,37 @@ class Level extends Scene {
 let game;
 const assetManager = new AssetManager('./img/');
 Object.values(ASSETS).forEach((asset) => {
-	switch (true) {
-		case asset.endsWith('.png'):
+		switch (true) {
+			case asset.endsWith('.png'):
 			assetManager.addImage(asset);
 			break;
-		case asset.endsWith('.mp3'):
+			case asset.endsWith('.mp3'):
 			assetManager.addAudio(asset);
 			break;
-	}
-});
-assetManager.onLoad(() => {
-	if (game) return;
-
-	game = new Game('ggj-2025-game', {
-		fps: 60,
-		gameLoopSettings: {
-			updateMode: 'focus', // or set it to 'focus'
-			renderMode: 'onUpdate',
-		},
+		}
 	});
-	game.assetManager = assetManager;
-	game.backgroundColor = '#101010';
+assetManager.onLoad(() => {
+		if (game) return;
 
-	const menu = new Menu(game, Level, settings.autoLevel);
-	game.pushScene(menu);
+		game = new Game('ggj-2025-game', {
+				fps: 60,
+				gameLoopSettings: {
+					updateMode: 'focus', // or set it to 'focus'
+					renderMode: 'onUpdate',
+				},
+			});
+		game.assetManager = assetManager;
+		game.backgroundColor = '#101010';
 
-	if (settings.autoLevel) {
-		menu.goToLevel();
-	}
+		const menu = new Menu(game, Level, settings.autoLevel);
+		game.pushScene(menu);
 
-	game.render();
+		if (settings.autoLevel) {
+			menu.goToLevel();
+		}
 
-	initDebug(game, settings, defaultSettings);
-});
+		game.render();
+
+		initDebug(game, settings, defaultSettings);
+	});
 assetManager.loadAssets();
