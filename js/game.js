@@ -91,10 +91,11 @@ class Tiles extends Entity {
 		const asset = assetManager.sprites.get(ASSETS.FLOORS_PNG);
 		this.graphic = new GraphicList();
 
-		for (var i = -5; i <= 5; i++) {
+		const xSize = 7;
+		for (var i = -xSize; i <= xSize; i++) {
 			for (var j = 1; j <= 2; j++) {
 				var xx = i * 93 + j * 49 * 1.0;
-				var yy = 180 - j * 49;
+				var yy = 180 * 2 - j * 49;
 
 				this.graphic.add(new Sprite(asset, xx, yy));
 			}
@@ -588,15 +589,17 @@ const buildingW = 960 / 6;
 
 let buildingIndices;
 {
-	const random = new Random(6465373);
+	const random = new Random(64673);
 	buildingIndices = Array.from({ length: 100 }, (_, i) => {
-		return i % 5;
+		return random.int(5);
 	});
 }
 
 class Buildings extends Entity {
 	constructor(xOffset) {
 		super(xOffset * buildingW, 0);
+
+		this.id = xOffset;
 
 		this.graphic = new AnimatedSprite(
 			assetManager.sprites.get(ASSETS.BG_SKYSCRAPERS),
@@ -614,22 +617,28 @@ class Buildings extends Entity {
 		this.graphic.add('3', [3], 100);
 		this.graphic.add('4', [4], 100);
 
-		const fuck = buildingIndices[xOffset].toString();
-		console.log(fuck);
-		this.graphic.play(fuck);
+		this.updateImage();
 		this.graphic.update();
+	}
+
+	updateImage() {
+		this.graphic.play(buildingIndices[this.id].toString());
 	}
 
 	update() {
 		const camera = this.scene.camera;
 		const scrollX = this.graphic.scrollX;
 		const w = buildingW / scrollX;
-		if (this.x / this.graphic.scrollX < camera.x - buildingW * scrollX) {
-			console.log('left');
+
+		const x = this.x - camera.x * scrollX;
+
+		if (x < -buildingW) {
 			this.x += buildingW * 5;
+			this.id += 5;
 		}
-		if (this.x / this.graphic.scrollX > camera.x + buildingW * 4) {
-			// this.x -= buildingW * 5;
+		if (x > buildingW * 4) {
+			this.x -= buildingW * 5;
+			this.id -= 5;
 		}
 	}
 }
@@ -673,7 +682,6 @@ class Level extends Scene {
 		entities[0].graphic.scrollX = 0;
 		entities[1].graphic.scrollX = 0;
 		entities[2].graphic.scrollX = 0.025;
-		// entities[3].graphic.scrollX = 0.25;
 
 		for (let i = 0; i < 5; ++i) {
 			const buildings = new Buildings(i);
@@ -687,7 +695,7 @@ class Level extends Scene {
 			...entities,
 			// bg,
 			// bg2,
-			// tiles,
+			tiles,
 			p,
 			cameraManager,
 		].forEach((e) => {
