@@ -36,7 +36,7 @@ const minY = 280;
 const maxY = 380;
 const random = new Random(settings.seed);
 
-var death_screen = false;
+var over = false;
 
 // delete old keys
 Object.keys(settings).forEach((key) => {
@@ -90,6 +90,12 @@ class Tiles extends Entity {
 
 		const asset = assetManager.sprites.get(ASSETS.FLOORS_PNG);
 		this.graphic = new GraphicList();
+		this.depth = -1;
+
+		var s = Sprite.createRect(480*2, 49*2, '#101010');
+		s.x = 0;
+		s.y = 360 - 49*2;
+		this.graphic.add(s);
 
 		const xSize = 7;
 		for (var i = -xSize; i <= xSize; i++) {
@@ -105,6 +111,31 @@ class Tiles extends Entity {
 	update(input) {
 		const limit = 93 * 3;
 		this.x = Math.floor(this.scene.camera.x / limit) * limit;
+	}
+}
+
+class BubbleTrap extends Entity {
+	t = 0.0;
+	dir = 0.0;
+	baseline = 0.0;
+
+	constructor(x, y, dir) {
+		super(x, y);
+
+		this.graphic = Sprite.createRect(32, 32, '#ffffff');
+		this.graphic.centerOrigin();
+		this.baseline = y;
+		this.dir = dir;
+		this.depth = -y;
+
+		console.log(x, y);
+	}
+
+	update(input) {
+		this.t += 10.0 / 60.0;
+
+		this.x += this.dir*1.5;
+		this.y = this.baseline + Math.sin(this.t * 0.5)*16.0;
 	}
 }
 
@@ -133,10 +164,10 @@ class Background extends Entity {
 	}
 }
 
-class DeathScreen extends Entity {
-	death_fade = 0.0;
+class CoolScreen extends Entity {
+	fade = 0.0;
 
-	constructor(w, h) {
+	constructor(txt, w, h) {
 		super(w / 2, h / 2);
 
 		this.graphic = new GraphicList();
@@ -146,7 +177,7 @@ class DeathScreen extends Entity {
 		this.bg.scrollX = 0.0;
 		this.graphic.add(this.bg);
 
-		this.txt = new Text('You fugging died!', 0, 0);
+		this.txt = new Text(txt, 0, 0);
 		this.txt.size = 20.0;
 		this.txt.scrollX = 0.0;
 		this.txt.centerOrigin();
@@ -155,12 +186,12 @@ class DeathScreen extends Entity {
 	}
 
 	update(input) {
-		this.death_fade += 1.0 / 60.0;
-		if (this.death_fade > 1.0) {
-			this.death_fade = 1.0;
+		this.fade += 1.0 / 60.0;
+		if (this.fade > 1.0) {
+			this.fade = 1.0;
 		}
 
-		this.bg.alpha = this.death_fade;
+		this.bg.alpha = this.fade;
 	}
 }
 
@@ -236,7 +267,7 @@ class Hitbox extends Entity {
 			if (e != null && e != this.owner && e instanceof Character) {
 				if (e.hurt(this.dmg)) {
 					const asset = assetManager.audio.get(
-						punch_sfx[random.int(punch_sfx.length)],
+						random.choose(punch_sfx),
 					);
 					Sfx.play(asset);
 				}
@@ -293,15 +324,16 @@ class Player extends Character {
 	}
 
 	onDeath() {
-		if (!death_screen) {
-			var e = new DeathScreen(
+		if (!over) {
+			var e = new CoolScreen(
+				'You fugging died!',
 				this.scene.engine.canvas.width,
 				this.scene.engine.canvas.height,
 			);
 			this.scene.addEntity(e);
 			this.scene.addRenderable(e);
 
-			death_screen = true;
+			over = true;
 		}
 
 		super.onDeath();
@@ -309,6 +341,9 @@ class Player extends Character {
 
 	update(input) {
 		super.update(input);
+		if (this.over) {
+			return;
+		}
 
 		let walking = false;
 		var next_state = 0;
@@ -333,6 +368,12 @@ class Player extends Character {
 			this.x += speed * moveVec.x;
 			this.y += speed * moveVec.y;
 			this.y = Math.clamp(this.y, minY, maxY);
+
+			if (input.keyPressed('z')) {
+				var e = new BubbleTrap(this.x, this.y - 60.0, this.flip ? -1.0 : 1.0);
+				this.scene.addEntity(e);
+				this.scene.addRenderable(e);
+			}
 
 			if (input.keyPressed(' ')) {
 				var xx = this.x + (this.flip ? -30.0 : 10.0);
@@ -454,6 +495,8 @@ class Grimey extends Character {
 				}
 			}
 			return;
+		} else if (over) {
+			return;
 		}
 
 		if (this.hitbox !== null) {
@@ -489,6 +532,11 @@ class Grimey extends Character {
 			if (this.anim_state != next_state) {
 				this.graphic.play(states2anim[next_state]);
 				this.anim_state = next_state;
+			}
+
+			if (this.x + 400.0 < this.scene.player.x) {
+				console.log("Offscreened!");
+				super.onDeath();
 			}
 		}
 	}
@@ -608,6 +656,7 @@ class Buildings extends Entity {
 		);
 		this.depth = -1;
 		this.graphic.centerOO();
+		this.y = 50.0;
 
 		this.graphic.scrollX = 0.25;
 
@@ -646,11 +695,12 @@ class Buildings extends Entity {
 class Level extends Scene {
 	constructor(engine) {
 		super(engine);
+		over = false;
 
 		const canvasSize = new Vec2(engine.canvas.width, engine.canvas.height);
 		const canvasCenter = canvasSize.scale(0.5);
 
-		const p = new Player(canvasCenter.x, 130.0, assetManager);
+		const p = new Player(canvasCenter.x, 400.0, assetManager);
 		this.player = p;
 
 		const cameraManager = new CameraManager(this.player);
@@ -675,7 +725,6 @@ class Level extends Scene {
 				entity.graphic = new Sprite(sprite);
 				entity.graphic.scale = 0.5;
 				entity.graphic.centerOO();
-				console.log(entity.graphic);
 				return entity;
 			});
 
@@ -706,7 +755,7 @@ class Level extends Scene {
 
 	furthest_room = 0;
 	room_start = 0.0;
-	rooms = [320.0, 320.0, 320.0];
+	rooms = [320.0, 320.0, 320.0, 400.0];
 
 	update(input) {
 		super.update(input);
@@ -716,26 +765,36 @@ class Level extends Scene {
 		}
 
 		const dist = this.player.x - this.room_start;
-		if (
-			this.furthest_room < this.rooms.length &&
-			dist > this.rooms[this.furthest_room]
-		) {
-			this.room_start += this.rooms[this.furthest_room++];
+		if (dist > this.rooms[this.furthest_room]) {
+			if (this.furthest_room == this.rooms.length - 1) {
+				if (!over) {
+					var e = new CoolScreen(
+						'You fugging won!',
+						this.engine.canvas.width,
+						this.engine.canvas.height,
+					);
+					this.addEntity(e);
+					this.addRenderable(e);
+				}
 
-			const n = random.int(3) + 2;
-			console.log('Spawning ' + n + ' grimeys');
+				over = true;
+			} else {
+				this.room_start += this.rooms[this.furthest_room++];
+				const n = random.int(3) + 2;
+				console.log('Spawning ' + n + ' grimeys');
 
-			for (var i = 0; i < n; i++) {
-				const e = new Grimey(
-					this.room_start +
-						game.canvas.width * 0.5 +
-						random.int(4) * 35.0,
-					game.canvas.height - (i * 30.0 + 20.0),
-					assetManager,
-				);
+				for (var i = 0; i < n; i++) {
+					const e = new Grimey(
+						this.room_start +
+							game.canvas.width * 0.5 +
+							random.int(4) * 35.0,
+						game.canvas.height - (i * 30.0 + 20.0),
+						assetManager,
+					);
 
-				this.addEntity(e);
-				this.addRenderable(e);
+					this.addEntity(e);
+					this.addRenderable(e);
+				}
 			}
 		}
 	}
