@@ -8,6 +8,7 @@ import {
 import { Vec2 } from './canvas-lord/util/math.js';
 import { Random } from './canvas-lord/util/random.js';
 import {
+	Text,
 	Sprite,
 	AnimatedSprite,
 	GraphicList,
@@ -30,6 +31,9 @@ const settings = Object.assign(
 
 const minY = 80;
 const maxY = 180;
+const random = new Random(settings.seed);
+
+var death_screen = false;
 
 // delete old keys
 Object.keys(settings).forEach((key) => {
@@ -94,13 +98,50 @@ class Background extends Entity {
 	}
 }
 
+class DeathScreen extends Entity {
+	death_fade = 0.0;
+
+	constructor(w, h) {
+		super(w / 2, h / 2);
+
+		this.graphic = new GraphicList();
+
+		this.bg = Sprite.createRect(w, h, 'black');
+		this.bg.centerOrigin();
+		this.bg.scrollX = 0.0;
+		this.graphic.add(this.bg);
+
+		this.txt = new Text('You fugging died!', 0, 0);
+		this.txt.size = 20.0;
+		this.txt.scrollX = 0.0;
+		this.txt.centerOrigin();
+		this.graphic.add(this.txt);
+		this.depth = -1000;
+	}
+
+	update(input) {
+		this.death_fade += 1.0 / 60.0;
+		if (this.death_fade > 1.0) {
+			this.death_fade = 1.0;
+		}
+
+		this.bg.alpha = this.death_fade;
+	}
+}
+
 class Character extends Entity {
 	hitFlash = false;
 	invFrames = 0;
-	health = 8;
+	health = 10;
 
 	anim_state = 0;
 	hitbox = null;
+
+	onDeath() {
+		this.scene.removeRenderable(this);
+		this.scene.removeEntity(this);
+		this.scene = null;
+	}
 
 	hurt(pts) {
 		if (this.invFrames > 0) {
@@ -110,10 +151,7 @@ class Character extends Entity {
 		console.log('Ouch!');
 		if (this.health <= pts) {
 			this.health = 0;
-
-			this.scene.removeRenderable(this);
-			this.scene.removeEntity(this);
-			this.scene = null;
+			this.onDeath();
 		} else {
 			this.health -= pts;
 		}
@@ -139,17 +177,19 @@ class Character extends Entity {
 class Hitbox extends Entity {
 	time = 0;
 	owner = null;
+	dmg = 0;
 
-	constructor(o, x, y) {
+	constructor(o, d, x, y) {
 		super(x, y);
+		this.dmg = d;
 		this.owner = o;
 		this.collider = {
 			type: 'rect',
 			tag: 'HITBOX',
 			x: 0,
-			y: 0,
+			y: -5,
 			w: 20,
-			h: 20,
+			h: 30,
 		};
 
 		this.time = 20;
@@ -157,9 +197,9 @@ class Hitbox extends Entity {
 
 	update(input) {
 		if (this.time <= 10) {
-			const e = this.collideEntity(this.x, this.y);
-			if (e != null && e != this.owner) {
-				e.hurt(2);
+			const e = this.collideEntity(this.x, this.y, ['CHAR']);
+			if (e != null && e != this.owner && e instanceof Character) {
+				e.hurt(this.dmg);
 			}
 		}
 
@@ -184,6 +224,7 @@ class Player extends Character {
 
 	constructor(x, y, assetManager) {
 		super(x, y);
+		this.health = 10;
 
 		const scale = 1.0;
 		const asset = assetManager.sprites.get('mr_clean.png');
@@ -192,6 +233,7 @@ class Player extends Character {
 
 		this.collider = {
 			type: 'rect',
+			tag: 'CHAR',
 			x: -10,
 			y: -20,
 			w: 20,
@@ -210,6 +252,21 @@ class Player extends Character {
 		this.graphic.add('punch', [4, 5, 6], 8);
 	}
 
+	onDeath() {
+		if (!death_screen) {
+			var e = new DeathScreen(
+				this.scene.engine.canvas.width,
+				this.scene.engine.canvas.height,
+			);
+			this.scene.addEntity(e);
+			this.scene.addRenderable(e);
+
+			death_screen = true;
+		}
+
+		super.onDeath();
+	}
+
 	update(input) {
 		super.update(input);
 
@@ -221,7 +278,7 @@ class Player extends Character {
 				this.hitbox = null;
 			}
 		} else {
-			const speed = 2.0;
+			const speed = 1.0;
 			let moveVec = new Vec2(0, 0);
 
 			moveVec.x = +input.keyCheck(keysR) - +input.keyCheck(keysL);
@@ -240,7 +297,7 @@ class Player extends Character {
 			if (input.keyPressed(' ')) {
 				var xx = this.x + (this.flip ? -30.0 : 10.0);
 
-				var e = new Hitbox(this, xx, this.y - 20.0);
+				var e = new Hitbox(this, 2, xx, this.y - 20.0);
 				this.scene.addEntity(e);
 				this.scene.addRenderable(e);
 				this.hitbox = e;
@@ -260,9 +317,10 @@ class Player extends Character {
 
 	render(ctx, camera) {
 		// this.graphic.x = -(this.y - minY) * 1.0;
+		this.graphic.x = this.flip ? -10 : 10;
 		this.graphic.scaleX = this.flip ? -1.0 : 1.0;
 
-		const drawX = this.x + this.graphic.x - camera.x;
+		const drawX = this.x - camera.x;
 		const drawY = this.y - camera.y;
 
 		const r = 12;
@@ -314,11 +372,13 @@ class Grimey extends Character {
 
 		this.collider = {
 			type: 'rect',
+			tag: 'CHAR',
 			x: -10,
 			y: -20,
 			w: 20,
 			h: 20,
 		};
+		this.health = 6;
 
 		this.graphic = new AnimatedSprite(asset, 80, 80);
 		this.graphic.centerOO();
@@ -359,11 +419,11 @@ class Grimey extends Character {
 			} else {
 				var xx = this.x + (this.flip ? -30.0 : 10.0);
 
-				var e = new Hitbox(this, xx, this.y - 20.0);
+				var e = new Hitbox(this, 1, xx, this.y - 20.0);
 				this.scene.addEntity(e);
 				this.scene.addRenderable(e);
 				this.hitbox = e;
-				this.anim_state = 2;
+				next_state = 2;
 			}
 
 			if (this.anim_state != next_state) {
@@ -482,17 +542,32 @@ class Level extends Scene {
 			this.addEntity(e);
 			this.addRenderable(e);
 		});
+	}
 
-		const random = new Random(settings.seed);
-		for (var i = 0; i < 3; i++) {
-			const e = new Grimey(
-				random.float(1000),
-				game.canvas.height - random.float(200),
-				assetManager,
-			);
+	furthest_room = 0;
+	room_start = 0.0;
+	rooms = [320.0, 320.0, 320.0];
 
-			this.addEntity(e);
-			this.addRenderable(e);
+	update(input) {
+		super.update(input);
+
+		const dist = this.player.x - this.room_start;
+		if (dist > this.rooms[this.furthest_room]) {
+			this.room_start += this.rooms[this.furthest_room++];
+
+			const n = random.int(3) + 2;
+			console.log('Spawning ' + n + ' grimeys');
+
+			for (var i = 0; i < n; i++) {
+				const e = new Grimey(
+					this.room_start + game.canvas.width,
+					game.canvas.height - (i * 30.0 + 20.0),
+					assetManager,
+				);
+
+				this.addEntity(e);
+				this.addRenderable(e);
+			}
 		}
 	}
 
