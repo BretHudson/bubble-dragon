@@ -995,6 +995,15 @@ assetManager.onLoad(() => {
 	});
 	game.assetManager = assetManager;
 	game.backgroundColor = '#101010';
+	game.listeners.blur.add(() => {
+		const scene = game.currentScenes?.[0];
+		if (scene && scene._pause) {
+			scene._pause();
+			window.requestAnimationFrame(() => {
+				game.render();
+			});
+		}
+	});
 
 	const menu = new Menu(game, Level, settings.autoLevel);
 	game.pushScene(menu);
