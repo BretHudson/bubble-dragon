@@ -5,6 +5,7 @@ import {
 	Scene,
 	Entity,
 	Draw,
+	Tileset,
 } from './canvas-lord/canvas-lord.js';
 import { Vec2 } from './canvas-lord/util/math.js';
 import { Random } from './canvas-lord/util/random.js';
@@ -15,13 +16,16 @@ import {
 	GraphicList,
 } from './canvas-lord/util/graphic.js';
 import { initDebug } from './debug.js';
-import { Menu } from './menu.js';
+import { Menu, MenuOptions } from './menu.js';
 
 const defaultSettings = {
 	autoLevel: false,
 	showCamera: false,
 	showHitboxes: false,
+	invincible: false,
+	hideOverlay: false,
 	seed: undefined,
+	playerSpeed: 1,
 	cameraInner: 40,
 	cameraOuter: 132,
 	cameraSpeed: 10,
@@ -32,8 +36,9 @@ if (window.debugEnabled) {
 }
 const settings = Object.assign({}, defaultSettings, localStorageSettings);
 
-const minY = 280;
+const minY = 200;
 const maxY = 380;
+const centerY = (maxY - minY) / 2 + minY;
 const random = new Random(settings.seed);
 
 var screen_min = 0.0;
@@ -48,13 +53,22 @@ Object.keys(settings).forEach((key) => {
 	}
 });
 
+const loadFont = async (name, fileName) => {
+	const font = new FontFace(name, `url("${fileName}")`);
+	await font.load();
+	document.fonts.add(font);
+};
+await loadFont('Skullboy', './fonts/ChevyRay - Skullboy.ttf');
+await loadFont('Skullboy Mono', './fonts/ChevyRay - Skullboy Mono.ttf');
+
 const ASSETS = {
 	MRCLEAN_PNG: 'mr_clean.png',
 	BADGUY_PNG: 'badguy.png',
 	BG_PNG: 'bg.png',
 	BG2_PNG: 'bg2.png',
 	BUBBLES2_PNG: 'bubbles2.png',
-	FLOORS_PNG: 'floors.png',
+	FLOOR_PNG: 'floor.png',
+	FLOOR_GRADIENT_PNG: 'floor_gradient.png',
 	GRIMEBOSS_PNG: 'grimeboss.png',
 
 	// backgrounds
@@ -62,7 +76,7 @@ const ASSETS = {
 	BG_CLOUD: 'bg_1_clouds.png', // static
 	BG_PYRAMIDS: 'pyramids.png', // parallax
 	BG_SKYSCRAPERS: 'parallax_parts_skyscrapers.png', // parallax
-	BG_FG: 'parallax_parts_fg.png', // parallax
+	BG_FG: 'parallax_parts_fg.png', // tiled
 
 	// menu
 	LOGO: 'logo.png',
@@ -81,6 +95,15 @@ const ASSETS = {
 	POP: 'pop.wav',
 };
 
+const DEPTH = {
+	BACKGROUND: 1000,
+	SKYSCRAPERS: 100,
+	TILES: 10,
+	BUILDINGS: 9,
+	OVERLAY: -1000,
+	CAMERA: -Infinity,
+};
+
 const punch_sfx = [
 	ASSETS.THUD,
 	ASSETS.THUNK,
@@ -91,32 +114,41 @@ const punch_sfx = [
 	ASSETS.WUGH,
 ];
 
+const tileStartY = minY - 10;
+
 class Tiles extends Entity {
 	constructor(assetManager) {
 		super(0, 0);
 
-		const asset = assetManager.sprites.get(ASSETS.FLOORS_PNG);
+		const asset = assetManager.sprites.get(ASSETS.FLOOR_PNG);
 		this.graphic = new GraphicList();
-		this.depth = -1;
+		this.depth = DEPTH.TILES;
 
-		var s = Sprite.createRect(480 * 2, 49 * 2, '#101010');
+		const { width, height } = asset;
+
+		var s = Sprite.createRect(width * 10, 480, '#101010');
 		s.x = 0;
-		s.y = 360 - 49 * 2;
+		s.y = tileStartY;
 		this.graphic.add(s);
 
-		const xSize = 7;
+		const xSize = 5;
 		for (var i = -xSize; i <= xSize; i++) {
-			for (var j = 1; j <= 2; j++) {
-				var xx = i * 93 + j * 49 * 1.0;
-				var yy = 180 * 2 - j * 49;
-
-				this.graphic.add(new Sprite(asset, xx, yy));
-			}
+			this.graphic.add(new Sprite(asset, width * i, tileStartY));
 		}
+
+		const gradient = new Sprite(
+			assetManager.sprites.get(ASSETS.FLOOR_GRADIENT_PNG),
+			0,
+			tileStartY,
+		);
+		gradient.alpha = 0.7;
+		gradient.scaleX = (width * 10) / gradient.width;
+		this.graphic.add(gradient);
 	}
 
 	update(input) {
-		const limit = 93 * 3;
+		const asset = assetManager.sprites.get(ASSETS.FLOOR_PNG);
+		const limit = asset.width * 3;
 		this.x = Math.floor(this.scene.camera.x / limit) * limit;
 	}
 }
@@ -244,7 +276,7 @@ class CoolScreen extends Entity {
 		this.txt.scrollX = 0.0;
 		this.txt.centerOrigin();
 		this.graphic.add(this.txt);
-		this.depth = -1000;
+		this.depth = DEPTH.OVERLAY;
 	}
 
 	update(input) {
@@ -400,6 +432,29 @@ class Character extends Entity {
 	}
 
 	render(ctx, camera) {
+		const drawX = this.x - camera.x;
+		const drawY = this.y - camera.y;
+
+		const r = 9;
+		const circleOptions = {
+			type: 'fill',
+			color: '#00000033',
+			radius: r,
+			scaleX: 2,
+		};
+		Draw.circle(ctx, circleOptions, drawX - r * 2, drawY - r, r);
+		Draw.circle(
+			ctx,
+			{
+				...circleOptions,
+				color: '#ffffff22',
+				type: 'stroke',
+			},
+			drawX - r * 2 + this.getImageXOffset(),
+			drawY - r,
+			r,
+		);
+
 		this.graphic.color = this.hitFlash ? 'white' : undefined;
 		super.render(ctx, camera);
 	}
@@ -498,6 +553,8 @@ class Player extends Character {
 		this.graphic.add('idle', [0], 60);
 		this.graphic.add('walk', [0, 1, 2, 3], 20);
 		this.graphic.add('punch', [4, 5, 6], 8);
+
+		this.flipOffset = 10;
 	}
 
 	onDeath() {
@@ -518,7 +575,6 @@ class Player extends Character {
 	}
 
 	update(input) {
-		super.update(input);
 		if (this.over) {
 			return;
 		}
@@ -581,6 +637,8 @@ class Player extends Character {
 		}
 
 		this.depth = -this.y;
+
+		super.update(input);
 	}
 
 	render(ctx, camera) {
@@ -790,12 +848,7 @@ class Grimey extends Character {
 	}
 
 	update(input) {
-		super.update(input);
-		this.depth = -this.y;
-
 		if (this.health == 0) {
-			super.update(input);
-
 			if (this.graphic.frame == 2) {
 				this.death_fade += 0.33 / 60.0;
 				this.graphic.alpha = 1.0 - this.death_fade;
@@ -861,6 +914,8 @@ class Grimey extends Character {
 		}
 
 		this.graphic.scaleX = this.flip ? -1.0 : 1.0;
+
+		super.update(input);
 	}
 
 	render(ctx, camera) {
