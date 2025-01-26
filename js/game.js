@@ -21,7 +21,9 @@ const defaultSettings = {
 	autoLevel: false,
 	showCamera: false,
 	showHitboxes: false,
+	invincible: false,
 	seed: undefined,
+	playerSpeed: 1,
 	cameraInner: 40,
 	cameraOuter: 132,
 	cameraSpeed: 10,
@@ -32,8 +34,9 @@ const settings = Object.assign(
 	JSON.parse(localStorage.getItem('settings')) ?? {},
 );
 
-const minY = 280;
+const minY = 200;
 const maxY = 380;
+const centerY = (maxY - minY) / 2;
 const random = new Random(settings.seed);
 
 var over = false;
@@ -51,7 +54,8 @@ const ASSETS = {
 	BG_PNG: 'bg.png',
 	BG2_PNG: 'bg2.png',
 	BUBBLES2_PNG: 'bubbles2.png',
-	FLOORS_PNG: 'floors.png',
+	FLOOR_PNG: 'floor.png',
+	FLOOR_GRADIENT_PNG: 'floor_gradient.png',
 
 	// backgrounds
 	BG_SUNSET: 'bg_0_sunset.png', // static
@@ -77,6 +81,14 @@ const ASSETS = {
 	POP: 'pop.wav',
 };
 
+const DEPTH = {
+	BACKGROUND: 1000,
+	BUILDINGS: 100,
+	TILES: 10,
+	OVERLAY: -1000,
+	CAMERA: -Infinity,
+};
+
 const punch_sfx = [
 	ASSETS.THUD,
 	ASSETS.THUNK,
@@ -87,32 +99,41 @@ const punch_sfx = [
 	ASSETS.WUGH,
 ];
 
+const tileStartY = minY - 10;
+
 class Tiles extends Entity {
 	constructor(assetManager) {
 		super(0, 0);
 
-		const asset = assetManager.sprites.get(ASSETS.FLOORS_PNG);
+		const asset = assetManager.sprites.get(ASSETS.FLOOR_PNG);
 		this.graphic = new GraphicList();
-		this.depth = -1;
+		this.depth = ASSETS.TILES;
 
-		var s = Sprite.createRect(480 * 2, 49 * 2, '#101010');
+		const { width, height } = asset;
+
+		var s = Sprite.createRect(width * 10, 480, '#101010');
 		s.x = 0;
-		s.y = 360 - 49 * 2;
+		s.y = tileStartY;
 		this.graphic.add(s);
 
-		const xSize = 7;
+		const xSize = 5;
 		for (var i = -xSize; i <= xSize; i++) {
-			for (var j = 1; j <= 2; j++) {
-				var xx = i * 93 + j * 49 * 1.0;
-				var yy = 180 * 2 - j * 49;
-
-				this.graphic.add(new Sprite(asset, xx, yy));
-			}
+			this.graphic.add(new Sprite(asset, width * i, tileStartY));
 		}
+
+		const gradient = new Sprite(
+			assetManager.sprites.get(ASSETS.FLOOR_GRADIENT_PNG),
+			0,
+			tileStartY,
+		);
+		gradient.alpha = 0.7;
+		gradient.scaleX = (width * 10) / gradient.width;
+		this.graphic.add(gradient);
 	}
 
 	update(input) {
-		const limit = 93 * 3;
+		const asset = assetManager.sprites.get(ASSETS.FLOOR_PNG);
+		const limit = asset.width * 3;
 		this.x = Math.floor(this.scene.camera.x / limit) * limit;
 	}
 }
@@ -188,31 +209,6 @@ class BubbleTrap extends Entity {
 	}
 }
 
-class Background extends Entity {
-	constructor(asset_name, canvas_height, assetManager) {
-		super(0, 0);
-		const asset = assetManager.sprites.get(asset_name);
-
-		this.graphic = new Sprite(asset);
-		this.graphic.scale = 0.5;
-		this.depth = 1;
-
-		if (asset_name == ASSETS.BG2_PNG) {
-			this.graphic.scrollX = 0.5;
-			this.depth = 2;
-		}
-
-		this.y = canvas_height - 100 - asset.height * 0.5;
-	}
-
-	update(input) {
-		const limit = 1000;
-		this.x =
-			Math.floor((this.scene.camera.x * this.graphic.scrollX) / limit) *
-			limit;
-	}
-}
-
 class CoolScreen extends Entity {
 	fade = 0.0;
 
@@ -231,7 +227,7 @@ class CoolScreen extends Entity {
 		this.txt.scrollX = 0.0;
 		this.txt.centerOrigin();
 		this.graphic.add(this.txt);
-		this.depth = -1000;
+		this.depth = DEPTH.OVERLAY;
 	}
 
 	update(input) {
@@ -397,6 +393,8 @@ class Player extends Character {
 			return;
 		}
 
+		if (settings.invincible) this.health = 10;
+
 		if (this.bubbles < 3) {
 			this.bubble_ticks += 1;
 			if (this.bubble_ticks > 120) {
@@ -413,7 +411,7 @@ class Player extends Character {
 				this.hitbox = null;
 			}
 		} else {
-			const speed = 1.0;
+			const speed = settings.playerSpeed;
 			let moveVec = new Vec2(0, 0);
 
 			moveVec.x = +input.keyCheck(keysR) - +input.keyCheck(keysL);
@@ -648,7 +646,7 @@ class CameraManager extends Entity {
 	constructor(follow) {
 		super(0, 0);
 		this.follow = follow;
-		this.depth = -Infinity;
+		this.depth = DEPTH.CAMERA;
 		this.updateSettings();
 	}
 
@@ -678,7 +676,7 @@ class CameraManager extends Entity {
 			--toggleX;
 		}
 
-		const realFollowX = this.follow.x - 50.0;
+		const realFollowX = this.follow.x - (centerY - minY);
 		if (Math.sign(realFollowX - followX) === dir) {
 			const targetX = realFollowX + innerDist * dir;
 			const dist = targetX - x;
@@ -746,9 +744,8 @@ class Buildings extends Entity {
 			buildingW,
 			540,
 		);
-		this.depth = -1;
+		this.depth = DEPTH.BUILDINGS;
 		this.graphic.centerOO();
-		this.y = 50.0;
 
 		this.graphic.scrollX = 0.25;
 
@@ -797,8 +794,6 @@ class Level extends Scene {
 
 		const cameraManager = new CameraManager(this.player);
 
-		const bg2 = new Background(ASSETS.BG2_PNG, canvasSize.y, assetManager);
-		const bg = new Background(ASSETS.BG_PNG, canvasSize.y, assetManager);
 		const tiles = new Tiles(assetManager);
 
 		const entities = [
@@ -814,6 +809,7 @@ class Level extends Scene {
 					engine.canvas.width >> 1,
 					(engine.canvas.height >> 1) - 80,
 				);
+				entity.depth = DEPTH.BACKGROUND;
 				entity.graphic = new Sprite(sprite);
 				entity.graphic.scale = 0.5;
 				entity.graphic.centerOO();
@@ -957,6 +953,9 @@ assetManager.onLoad(() => {
 
 	if (settings.autoLevel) {
 		menu.goToLevel();
+		window.requestAnimationFrame(() => {
+			game.render();
+		});
 	}
 
 	game.render();
