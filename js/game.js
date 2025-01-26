@@ -69,6 +69,7 @@ const ASSETS = {
 	BUBBLES2_PNG: 'bubbles2.png',
 	FLOOR_PNG: 'floor.png',
 	FLOOR_GRADIENT_PNG: 'floor_gradient.png',
+	GRIMEBOSS_PNG: 'grimeboss.png',
 
 	// backgrounds
 	BG_SUNSET: 'bg_0_sunset.png', // static
@@ -229,6 +230,31 @@ class BubbleTrap extends Entity {
 	}
 }
 
+class Background extends Entity {
+	constructor(asset_name, canvas_height, assetManager) {
+		super(0, 0);
+		const asset = assetManager.sprites.get(asset_name);
+
+		this.graphic = new Sprite(asset);
+		this.graphic.scale = 0.5;
+		this.depth = 1;
+
+		if (asset_name == ASSETS.BG2_PNG) {
+			this.graphic.scrollX = 0.5;
+			this.depth = 2;
+		}
+
+		this.y = canvas_height - 100 - asset.height * 0.5;
+	}
+
+	update(input) {
+		const limit = 1000;
+		this.x =
+			Math.floor((this.scene.camera.x * this.graphic.scrollX) / limit) *
+			limit;
+	}
+}
+
 class CoolScreen extends Entity {
 	fade = 0.0;
 	boss_txt = false;
@@ -271,6 +297,16 @@ class CoolScreen extends Entity {
 				this.scene.addEntity(e);
 				this.scene.addRenderable(e);
 
+				const n = this.scene.entities.inScene.length;
+				for (var i = 0; i < n; ++i) {
+					const e = this.scene.entities.inScene[i];
+					if (e instanceof Grimey) {
+						this.scene.removeRenderable(e);
+						this.scene.removeEntity(e);
+						e.scene = null;
+					}
+				}
+
 				// kill overlay
 				this.scene.removeRenderable(this);
 				this.scene.removeEntity(this);
@@ -282,7 +318,11 @@ class CoolScreen extends Entity {
 			}
 		}
 
-		this.bg.alpha = this.fade;
+		if (this.boss_txt) {
+			this.bg.alpha = Math.sin(this.fade * Math.PI) * 0.5 + 0.5;
+		} else {
+			this.bg.alpha = this.fade;
+		}
 
 		this.visible = !settings.hideOverlay;
 	}
@@ -328,6 +368,7 @@ class Character extends Entity {
 	}
 
 	updateGraphic() {
+		this.graphic.scaleX = this.flip ? -1.0 : 1.0;
 		this.graphic.x = this.getImageXOffset();
 		this.graphic.x += this.flip ? -this.flipOffset : this.flipOffset;
 	}
@@ -341,16 +382,6 @@ class Character extends Entity {
 		this.scene.removeRenderable(this);
 		this.scene.removeEntity(this);
 		this.scene = null;
-	}
-
-	getImageXOffset() {
-		return 0;
-		return -(this.y - minY) + (centerY - minY);
-	}
-
-	updateGraphic() {
-		this.graphic.x = this.getImageXOffset();
-		this.graphic.x += this.flip ? -this.flipOffset : this.flipOffset;
 	}
 
 	hurt(pts) {
@@ -400,7 +431,6 @@ class Character extends Entity {
 			this.invFrames -= 1;
 		}
 
-		this.graphic.scaleX = this.flip ? -1.0 : 1.0;
 		this.hitFlash = this.invFrames % 8 >= 4;
 	}
 
@@ -499,8 +529,29 @@ class Player extends Character {
 	bubbles = 3;
 
 	constructor(x, y, assetManager) {
+		super(x, y);
+		this.health = 10;
+
+		const scale = 1.0;
 		const asset = assetManager.sprites.get('mr_clean.png');
-		super(x, y, asset, 10);
+		const w = 80.0 * scale;
+		const h = 80.0 * scale;
+
+		this.collider = {
+			type: 'rect',
+			tag: 'CHAR',
+			x: -10,
+			y: -20,
+			w: 20,
+			h: 20,
+		};
+
+		this.graphic = new AnimatedSprite(asset, 80, 80);
+		this.graphic.centerOO();
+		this.graphic.originY = 0;
+		this.graphic.offsetY = 0;
+		this.graphic.y = -h;
+		this.graphic.scale = scale;
 
 		this.graphic.add('idle', [0], 60);
 		this.graphic.add('walk', [0, 1, 2, 3], 20);
@@ -594,6 +645,21 @@ class Player extends Character {
 	}
 
 	render(ctx, camera) {
+		// this.graphic.x = -(this.y - minY);
+		this.graphic.x = this.flip ? -10 : 10;
+
+		const drawX = this.x - camera.x;
+		const drawY = this.y - camera.y;
+
+		const r = 12;
+		const circleOptions = {
+			type: 'fill',
+			color: '#88888888',
+			radius: r,
+			scaleX: 2,
+		};
+		Draw.circle(ctx, circleOptions, drawX - r * 2, drawY - r, r);
+
 		super.render(ctx, camera);
 
 		const rectOptions = {
@@ -733,6 +799,7 @@ class Boss extends Character {
 			}
 		}
 
+		this.graphic.scaleX = this.flip ? -1.0 : 1.0;
 		super.update(input);
 	}
 }
@@ -741,8 +808,29 @@ class Grimey extends Character {
 	death_fade = 0.0;
 
 	constructor(x, y, assetManager) {
+		super(x, y);
+
+		const scale = 1.0;
 		const asset = assetManager.sprites.get('badguy.png');
-		super(x, y, asset, 6);
+		const w = 80.0 * scale;
+		const h = 80.0 * scale;
+
+		this.collider = {
+			type: 'rect',
+			tag: 'CHAR',
+			x: -10,
+			y: -20,
+			w: 20,
+			h: 20,
+		};
+		this.health = 6;
+
+		this.graphic = new AnimatedSprite(asset, 80, 80);
+		this.graphic.centerOO();
+		this.graphic.originY = 0;
+		this.graphic.offsetY = 0;
+		this.graphic.y = -h;
+		this.graphic.scale = scale;
 
 		this.graphic.add('idle', [0], 60);
 		this.graphic.add('walk', [0, 1, 2, 3], 20);
@@ -763,8 +851,6 @@ class Grimey extends Character {
 
 	update(input) {
 		if (this.health == 0) {
-			super.update(input);
-
 			if (this.graphic.frame == 2) {
 				this.death_fade += 0.33 / 60.0;
 				this.graphic.alpha = 1.0 - this.death_fade;
@@ -823,13 +909,19 @@ class Grimey extends Character {
 				this.anim_state = next_state;
 			}
 
-			if (this.x < this.scene.player.x - 400.0) {
+			if (this.x + 400.0 < this.scene.player.x) {
 				console.log('Offscreened!');
 				super.onDeath();
 			}
 		}
 
 		super.update(input);
+	}
+
+	render(ctx, camera) {
+		// this.graphic.x = -(this.y - minY) + (this.flip ? -10 : 10);
+		this.graphic.x = this.flip ? -10 : 10;
+		super.render(ctx, camera);
 	}
 }
 
@@ -856,7 +948,7 @@ class CameraManager extends Entity {
 	update(input) {
 		this.updateSettings();
 
-		if (settings.showCamera) {
+		if (input && settings.showCamera) {
 			if (input.keyPressed?.('q')) this.dir = -1;
 			if (input.keyPressed?.('e')) this.dir = 1;
 		}
@@ -884,8 +976,12 @@ class CameraManager extends Entity {
 
 		this.scene.camera.x = this.x - this.scene.engine.canvas.width * 0.5;
 
-		if (this.scene.camera.x < 0) {
-			this.scene.camera.x = 0;
+		if (this.scene.camera.x < screen_min) {
+			this.scene.camera.x = screen_min;
+		}
+
+		if (this.scene.camera.x > screen_max - this.scene.engine.canvas.width) {
+			this.scene.camera.x = screen_max - this.scene.engine.canvas.width;
 		}
 	}
 
@@ -1116,9 +1212,17 @@ class Level extends Scene {
 
 		const cameraManager = new CameraManager(this.player);
 
+		const bg2 = new Background(ASSETS.BG2_PNG, canvasSize.y, assetManager);
+		const bg = new Background(ASSETS.BG_PNG, canvasSize.y, assetManager);
 		const tiles = new Tiles(assetManager);
 
-		const entities = [ASSETS.BG_SUNSET, ASSETS.BG_CLOUD, ASSETS.BG_PYRAMIDS]
+		const entities = [
+			ASSETS.BG_SUNSET,
+			ASSETS.BG_CLOUD,
+			ASSETS.BG_PYRAMIDS,
+			// ASSETS.BG_SKYSCRAPERS,
+			// ASSETS.BG_FG,
+		]
 			.map((asset) => assetManager.sprites.get(asset))
 			.map((sprite) => {
 				const entity = new Entity(
@@ -1169,14 +1273,6 @@ class Level extends Scene {
 		this.engine.pushScene(new PauseScreen(this.engine));
 	}
 
-	blur() {
-		this.pauseGame();
-	}
-
-	pauseGame() {
-		this.engine.pushScene(new PauseScreen(this.engine));
-	}
-
 	update(input) {
 		super.update(input);
 
@@ -1185,22 +1281,30 @@ class Level extends Scene {
 		}
 
 		const dist = this.player.x - this.room_start;
-		if (dist > this.rooms[this.furthest_room]) {
+		if (
+			this.furthest_room < this.rooms.length &&
+			dist > this.rooms[this.furthest_room]
+		) {
 			if (this.furthest_room == this.rooms.length - 1) {
-				if (!over) {
-					var e = new CoolScreen(
-						'You fugging won!',
-						this.engine.canvas.width,
-						this.engine.canvas.height,
-						true,
-					);
-					this.addEntity(e);
-					this.addRenderable(e);
-				}
+				this.room_start += this.rooms[this.furthest_room++];
+				screen_min = this.room_start;
+				screen_max = this.room_start + this.engine.canvas.width;
 
-				over = true;
+				var e = new CoolScreen(
+					'BOSS TIME!',
+					this.engine.canvas.width,
+					this.engine.canvas.height,
+					true,
+				);
+				this.addEntity(e);
+				this.addRenderable(e);
 			} else {
 				this.room_start += this.rooms[this.furthest_room++];
+				if (this.furthest_room == this.rooms.length - 1) {
+					screen_max =
+						this.room_start + this.rooms[this.furthest_room];
+				}
+
 				const n = random.int(3) + 2;
 				console.log('Spawning ' + n + ' grimeys');
 
@@ -1268,7 +1372,6 @@ Object.values(ASSETS).forEach((asset) => {
 			break;
 	}
 });
-
 assetManager.onLoad(() => {
 	if (game) return;
 
