@@ -5,6 +5,8 @@
 }
 
 body {
+	--canvas-size: 960px;
+
 	padding: 1rem 0;
 	display: flex;
 	flex-direction: column;
@@ -14,7 +16,7 @@ body {
 
 .canvas-lord {
 	width: 100%;
-	max-width: calc(1280px + 16px);
+	max-width: calc(var(--canvas-size) + 16px);
 	margin: 0 auto;
 	&:focus-within canvas {
 		border-color: #bbf;
@@ -53,7 +55,7 @@ body {
 #cabinet {
 	--inset: 40px;
 	background: #67aac9;
-	width: 1400px;
+	width: calc(var(--canvas-size) + 160px);
 	header {
 		background: #2c7596;
 		padding: 1.5rem;
@@ -148,8 +150,8 @@ canvas {
 	background: black;
 	box-sizing: content-box;
 	display: block;
-	width: 100%;
-	max-width: 1280px;
+	width: var(--canvas-size);
+	max-width: 100%;
 	margin: 0 auto;
 	padding: 5px;
 	border: 3px solid #ddd;
