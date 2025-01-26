@@ -16,9 +16,11 @@ body {
 
 .canvas-lord {
 	width: 100%;
+	padding: 5px;
 	max-width: calc(var(--canvas-size) + 16px);
 	margin: 0 auto;
-	&:focus-within canvas {
+	border: 3px solid #ddd;
+	&:focus-within {
 		border-color: #bbf;
 	}
 	background: black;
@@ -54,25 +56,41 @@ body {
 
 #cabinet {
 	--inset: 40px;
-	background: #67aac9;
+	--cabinet-color: #67aac9;
+	--header-color: #2c7596;
+
+	background-color: var(--cabinet-color);
 	width: calc(var(--canvas-size) + 160px);
-	header {
-		background: #2c7596;
-		padding: 1.5rem;
-		div {
-			background: #2c7596;
-			/* border: 4px solid white; */
+	max-width: 98%;
+
+	transition: background-color 0.3s;
+
+	&:has(.canvas-lord:focus-within) {
+		--cabinet-color: #67aac955;
+		--header-color: #2c759644;
+
+		header img {
+			opacity: 0.5;
 		}
-		/* background: rgba(0, 0, 0, 0.2); */
+	}
+
+	header {
+		background: var(--header-color);
+
+		transition: background-color 0.3s;
+		padding: 1.5rem;
 		img {
 			display: block;
 			margin: 0 auto;
+
+			transition: opacity 0.3s;
 		}
 	}
 	main {
 		position: relative;
 		background: rgba(0, 0, 0, 0.2);
 		padding-block: 2rem;
+		padding-inline: calc(2rem + var(--inset));
 	}
 	footer {
 		height: 200px;
@@ -153,8 +171,6 @@ canvas {
 	width: var(--canvas-size);
 	max-width: 100%;
 	margin: 0 auto;
-	padding: 5px;
-	border: 3px solid #ddd;
 	image-rendering: -moz-crisp-edges;
 	image-rendering: -webkit-crisp-edges;
 	image-rendering: pixelated;
