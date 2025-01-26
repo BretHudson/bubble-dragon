@@ -256,6 +256,7 @@ export class AnimatedSprite extends Graphic {
         this.animations.set(name, animation);
     }
     play(name) {
+		if (name === this.currentAnimation?.name) return;
         this.inc = 0;
         this.currentAnimation =
             name !== undefined ? this.animations.get(name) : name;
