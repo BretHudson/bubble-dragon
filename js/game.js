@@ -889,7 +889,11 @@ class Level extends Scene {
 	room_start = 0.0;
 	rooms = [320.0, 320.0, 320.0, 400.0];
 
-	_pause() {
+	blur() {
+		this.pauseGame();
+	}
+
+	pauseGame() {
 		this.engine.pushScene(new PauseScreen(this.engine));
 	}
 
@@ -897,7 +901,7 @@ class Level extends Scene {
 		super.update(input);
 
 		if (input.keyPressed(pauseKeys)) {
-			this._pause();
+			this.pauseGame();
 		}
 
 		const dist = this.player.x - this.room_start;
@@ -997,8 +1001,8 @@ assetManager.onLoad(() => {
 	game.backgroundColor = '#101010';
 	game.listeners.blur.add(() => {
 		const scene = game.currentScenes?.[0];
-		if (scene && scene._pause) {
-			scene._pause();
+		if (scene && scene.blur) {
+			scene.blur();
 			window.requestAnimationFrame(() => {
 				game.render();
 			});
