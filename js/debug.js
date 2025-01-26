@@ -14,6 +14,7 @@ const types = {
 	showCamera: 'checkbox',
 	showHitboxes: 'checkbox',
 	invincible: 'checkbox',
+	hideOverlay: 'checkbox',
 	seed: 'checkbox',
 	playerSpeed: 'number',
 	cameraInner: 'number',

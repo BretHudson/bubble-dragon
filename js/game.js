@@ -22,6 +22,7 @@ const defaultSettings = {
 	showCamera: false,
 	showHitboxes: false,
 	invincible: false,
+	hideOverlay: false,
 	seed: undefined,
 	playerSpeed: 1,
 	cameraInner: 40,
@@ -237,6 +238,8 @@ class CoolScreen extends Entity {
 		}
 
 		this.bg.alpha = this.fade;
+
+		this.visible = !settings.hideOverlay;
 	}
 }
 
@@ -252,6 +255,11 @@ class Character extends Entity {
 		this.scene.removeRenderable(this);
 		this.scene.removeEntity(this);
 		this.scene = null;
+	}
+
+	updateGraphic() {
+		this.graphic.x = -(this.y - minY) + (centerY - minY);
+		this.graphic.x += this.flip ? -10 : 10;
 	}
 
 	hurt(pts) {
@@ -271,6 +279,8 @@ class Character extends Entity {
 
 	update(input) {
 		super.update(input);
+
+		this.updateGraphic();
 
 		if (this.invFrames > 0) {
 			this.invFrames -= 1;
@@ -392,6 +402,8 @@ class Player extends Character {
 		this.graphic.add('idle', [0], 60);
 		this.graphic.add('walk', [0, 1, 2, 3], 20);
 		this.graphic.add('punch', [4, 5, 6], 8);
+
+		this.updateGraphic();
 	}
 
 	onDeath() {
@@ -411,7 +423,6 @@ class Player extends Character {
 	}
 
 	update(input) {
-		super.update(input);
 		if (this.over) {
 			return;
 		}
@@ -480,11 +491,11 @@ class Player extends Character {
 		}
 
 		this.depth = -this.y;
+
+		super.update(input);
 	}
 
 	render(ctx, camera) {
-		// this.graphic.x = -(this.y - minY);
-		this.graphic.x = this.flip ? -10 : 10;
 		this.graphic.scaleX = this.flip ? -1.0 : 1.0;
 
 		super.render(ctx, camera);
@@ -562,6 +573,8 @@ class Grimey extends Character {
 		this.graphic.add('punch', [4, 5, 6], 8, false);
 		this.graphic.add('death', [12, 13, 14], 60, false);
 		this.graphic.add('stuck', [14], 60, false);
+
+		this.updateGraphic();
 	}
 
 	onDeath() {
@@ -573,7 +586,6 @@ class Grimey extends Character {
 	}
 
 	update(input) {
-		super.update(input);
 		this.depth = -this.y;
 
 		if (this.health == 0) {
@@ -639,6 +651,8 @@ class Grimey extends Character {
 		}
 
 		this.graphic.scaleX = this.flip ? -1.0 : 1.0;
+
+		super.update(input);
 	}
 
 	render(ctx, camera) {
@@ -671,11 +685,9 @@ class CameraManager extends Entity {
 	update(input) {
 		this.updateSettings();
 
-		if (settings.showCamera && input.keyPressed('q')) {
-			this.dir = -1;
-		}
-		if (settings.showCamera && input.keyPressed('e')) {
-			this.dir = 1;
+		if (settings.showCamera) {
+			if (input.keyPressed?.('q')) this.dir = -1;
+			if (input.keyPressed?.('e')) this.dir = 1;
 		}
 
 		const { x, innerDist, outerDist, dir } = this;
@@ -687,7 +699,7 @@ class CameraManager extends Entity {
 			--toggleX;
 		}
 
-		const realFollowX = this.follow.x - (centerY - minY);
+		const realFollowX = this.follow.x;
 		if (Math.sign(realFollowX - followX) === dir) {
 			const targetX = realFollowX + innerDist * dir;
 			const dist = targetX - x;
@@ -837,19 +849,13 @@ class Level extends Scene {
 			this.addRenderable(buildings);
 		}
 
-		// 0, 1, pyramids, sky, fg
-
-		[
-			...entities,
-			// bg,
-			// bg2,
-			tiles,
-			p,
-			cameraManager,
-		].forEach((e) => {
+		[...entities, tiles, p, cameraManager].forEach((e) => {
 			this.addEntity(e);
 			this.addRenderable(e);
 		});
+
+		// a lil' cheat for making the camera immediately snap
+		for (let i = 0; i < 100; ++i) cameraManager.update({});
 	}
 
 	furthest_room = 0;
