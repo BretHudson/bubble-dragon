@@ -7,7 +7,7 @@ import {
 } from './canvas-lord/canvas-lord.js';
 import { Vec2 } from './canvas-lord/util/math.js';
 import { Random } from './canvas-lord/util/random.js';
-import { Sprite } from './canvas-lord/util/graphic.js';
+import { Sprite, AnimatedSprite } from './canvas-lord/util/graphic.js';
 import { initDebug } from './debug.js';
 
 const defaultSettings = {
@@ -34,11 +34,27 @@ Object.keys(settings).forEach((key) => {
 const ASSETS = {
 	MOLE_SKETCH_PNG: 'mole-sketch.png',
 	MOLE_SKETCH_NO_BG_PNG: 'mole-sketch-no-bg.png',
+	MRCLEAN_PNG: 'mr_clean.png',
 	BG_PNG: 'bg.png',
 	BG2_PNG: 'bg2.png',
+	FLOORS_PNG: 'floors.png',
 };
 
-const OFFSET_X = -532 * 0.125;
+class Tile extends Entity {
+	constructor(x, y, assetManager) {
+		super(x, y);
+		const asset = assetManager.sprites.get("floors.png");
+
+		this.graphic = new Sprite(asset);
+	}
+
+	update(input) {
+		const limit = 1000;
+		this.x =
+			Math.floor((this.scene.camera.x * this.graphic.scrollX) / limit) *
+			limit;
+	}
+}
 
 class Background extends Entity {
 	constructor(asset_name, canvas_height, assetManager) {
@@ -54,7 +70,7 @@ class Background extends Entity {
 			this.depth = 2;
 		}
 
-		this.y = canvas_height - asset.height * 0.5;
+		this.y = (canvas_height - 150) - (asset.height * 0.5);
 	}
 
 	update(input) {
@@ -100,77 +116,129 @@ class Character extends Entity {
 	}
 }
 
+class Hitbox extends Entity {
+	time = 0;
+
+	constructor(x, y) {
+		super(x, y);
+		this.collider = {
+			type: 'rect',
+			tag: 'HITBOX',
+			x: 0,
+			y: 0,
+			w: 20,
+			h: 20,
+		};
+
+		this.time = 30;
+	}
+
+	update(input) {
+		this.time -= 1;
+		if (this.time == 0) {
+			this.scene.removeRenderable(this);
+			this.scene.removeEntity(this);
+		}
+	}
+}
+
 class Mole extends Character {
-	collider = {
-		type: 'rect',
-		x: -532 * 0.125,
-		y:  546 * 0.0625,
-		w:  532 * 0.25,
-		h:  546 * 0.05,
-	};
+	flip = false;
+	hitbox = null;
 
 	constructor(x, y, assetManager) {
 		super(x, y);
-		const asset = assetManager.sprites.get(ASSETS.MOLE_SKETCH_NO_BG_PNG);
 
-		const scale = 0.25;
-
-		const w = asset.width * scale;
+		const scale = 1.0;
+		const asset = assetManager.sprites.get('mr_clean.png');
+		const w = (asset.width * 0.25) * scale;
 		const h = asset.height * scale;
 
 		this.collider = {
 			type: 'rect',
-			x: -w >> 1,
-			y: -h >> 1,
+			x: 0,
+			y: 0,
 			w,
 			h,
 		};
 
-		this.graphic = new Sprite(asset);
-		this.graphic.centerOrigin();
+		this.graphic = new AnimatedSprite(
+			asset, 44, 79,
+		);
+		this.graphic.originY = -h;
 		this.graphic.scale = scale;
+
+		this.graphic.add('idle', [0], 60);
+		this.graphic.add('walk', [0, 1, 2, 3], 16);
 	}
 
 	update(input) {
 		super.update(input);
 
-		const speed = 10.0;
+		const speed = 2.0;
 		var nx = this.x;
 		var ny = this.y;
-		if (input.keyCheck('a')) {
-			nx -= speed;
-		} else if (input.keyCheck('d')) {
-			nx += speed;
-		}
 
+		var walking = false;
 		if (input.keyCheck('w')) {
 			ny -= speed;
+			walking = true;
+			this.flip = true;
 
 			if (ny < 150.0) {
 				ny = 150.0;
 			}
 		} else if (input.keyCheck('s')) {
 			ny += speed;
+			walking = true;
+			this.flip = false;
 
 			if (ny > 400.0) {
 				ny = 400.0;
 			}
 		}
 
-		if (!this.collide(nx, this.y)) {
+		if (input.keyCheck('a')) {
+			nx -= speed;
+			walking = true;
+			this.flip = true;
+		} else if (input.keyCheck('d')) {
+			nx += speed;
+			walking = true;
+			this.flip = false;
+		}
+
+		this.x = nx;
+		this.y = ny;
+
+		/* if (!this.collide(nx, this.y)) {
 			this.x = nx;
 		}
 
 		if (!this.collide(this.x, ny)) {
 			this.y = ny;
+		} */
+
+		if (input.keyPressed(' ')) {
+			var xx = this.x + this.y*0.25;
+			xx += this.flip ? -20.0 : 22.0+20.0;
+
+			var e = new Hitbox(xx, this.y);
+			this.scene.addEntity(e);
+			this.scene.addRenderable(e);
+			this.hitbox = e;
 		}
 
+		this.graphic.play(walking ? 'walk' : 'idle');
 		this.depth = -this.y;
 	}
 
 	render(ctx, camera) {
-		this.collider.x = (this.y * 0.25) + OFFSET_X;
-		this.graphic.x  = this.y * 0.25;
+		this.graphic.scaleX = this.flip ? -1.0 : 1.0;
+
+		var off_x = this.flip ? 44 : 0;
+		this.collider.x = (this.y * 0.25);
+		this.graphic.x  = (this.y * 0.25) + off_x;
 
 		super.render(ctx, camera);
 
@@ -205,7 +273,7 @@ class Grimey extends Character {
 
 	constructor(x, y, assetManager) {
 		super(x, y);
-		const asset = assetManager.sprites.get(ASSETS.MOLE_SKETCH_PNG);
+		const asset = assetManager.sprites.get('mr_clean.png');
 
 		const scale = 0.25;
 
@@ -257,7 +325,7 @@ class Grimey extends Character {
 	}
 
 	render(ctx, camera) {
-		this.collider.x = (this.y * 0.25) + OFFSET_X;
+		this.collider.x = (this.y * 0.25) + (-532 * 0.125);
 		this.graphic.x = this.y * 0.25;
 
 		super.render(ctx, camera);
@@ -303,15 +371,16 @@ class CameraManager extends Entity {
 			--toggleX;
 		}
 
-		if (Math.sign(this.follow.x - followX) === dir) {
-			const targetX = this.follow.x + innerDist * dir;
+		const realFollowX = this.follow.x;// + this.follow.graphic.x;
+		if (Math.sign(realFollowX - followX) === dir) {
+			const targetX = realFollowX + innerDist * dir;
 			const dist = targetX - x;
 			const spd = Math.min(Math.abs(dist), this.speed);
 			this.x += Math.sign(dist) * spd;
 		}
 
-		if (Math.sign(this.follow.x - toggleX) == -dir) {
-			this.dir = Math.sign(this.follow.x - toggleX);
+		if (Math.sign(realFollowX - toggleX) == -dir) {
+			this.dir = Math.sign(realFollowX - toggleX);
 		}
 
 		this.scene.camera.x = this.x - this.scene.engine.canvas.width * 0.5;
@@ -367,7 +436,7 @@ class Level extends Scene {
 			});
 
 		const random = new Random(settings.seed);
-		for (var i = 0; i < 15; i++) {
+		for (var i = 0; i < 5; i++) {
 			const e = new Grimey(
 				random.float(8000),
 				game.canvas.height - random.float(200),
@@ -419,22 +488,22 @@ Object.values(ASSETS).forEach((asset) => {
 		}
 	});
 assetManager.onLoad(() => {
-	if (game) return;
+		if (game) return;
 
-	game = new Game('ggj-2025-game', {
-		fps: 60,
-		gameLoopSettings: {
-			updateMode: 'focus', // or set it to 'focus'
-			renderMode: 'onUpdate',
-		},
+		game = new Game('ggj-2025-game', {
+				fps: 60,
+				gameLoopSettings: {
+					updateMode: 'focus', // or set it to 'focus'
+					renderMode: 'onUpdate',
+				},
+			});
+		game.assetManager = assetManager;
+		game.backgroundColor = '#6c6d71';
+
+		const scene = new Level(game);
+		game.pushScene(scene);
+		game.render();
+
+		initDebug(game, settings, defaultSettings);
 	});
-	game.assetManager = assetManager;
-	game.backgroundColor = '#6c6d71';
-
-	const scene = new Level(game);
-	game.pushScene(scene);
-	game.render();
-
-	initDebug(game, settings, defaultSettings);
-});
 assetManager.loadAssets();
