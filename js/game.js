@@ -65,10 +65,11 @@ class Tiles extends Entity {
 		const asset = assetManager.sprites.get(ASSETS.FLOORS_PNG);
 		this.graphic = new GraphicList();
 
-		for (var i = -5; i <= 5; i++) {
+		const xSize = 7;
+		for (var i = -xSize; i <= xSize; i++) {
 			for (var j = 1; j <= 2; j++) {
 				var xx = i * 93 + j * 49 * 1.0;
-				var yy = 180 - j * 49;
+				var yy = 180 * 2 - j * 49;
 
 				this.graphic.add(new Sprite(asset, xx, yy));
 			}
@@ -574,7 +575,6 @@ class Level extends Scene {
 		entities[0].graphic.scrollX = 0;
 		entities[1].graphic.scrollX = 0;
 		entities[2].graphic.scrollX = 0.025;
-		// entities[3].graphic.scrollX = 0.25;
 
 		for (let i = 0; i < 5; ++i) {
 			const buildings = new Buildings(i);
@@ -588,7 +588,7 @@ class Level extends Scene {
 			...entities,
 			// bg,
 			// bg2,
-			// tiles,
+			tiles,
 			p,
 			cameraManager,
 		].forEach((e) => {
