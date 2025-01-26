@@ -1,22 +1,5 @@
-import {
-	AssetManager,
-	Game,
-	Scene,
-	Entity,
-	Draw,
-} from './canvas-lord/canvas-lord.js';
-import { Vec2 } from './canvas-lord/util/math.js';
-import { Random } from './canvas-lord/util/random.js';
-import {
-	Sprite,
-	AnimatedSprite,
-	GraphicList,
-	Text,
-} from './canvas-lord/util/graphic.js';
-
-const ASSETS = {
-	LOGO: 'logo.png',
-};
+import { Scene, Entity } from './canvas-lord/canvas-lord.js';
+import { Sprite, Text } from './canvas-lord/util/graphic.js';
 
 const names = [
 	'Bret Hudson',
@@ -25,15 +8,29 @@ const names = [
 	'Yasser Arguelles Snape',
 ];
 
-// Fonts by Chequered Ink
-
 const bullet = '•';
 
-class Menu extends Scene {
+const ASSETS = {
+	MOLE_SKETCH_PNG: 'mole-sketch.png',
+	MOLE_SKETCH_NO_BG_PNG: 'mole-sketch-no-bg.png',
+	MRCLEAN_PNG: 'mr_clean.png',
+	BG_PNG: 'bg.png',
+	BG2_PNG: 'bg2.png',
+	FLOORS_PNG: 'floors.png',
+
+	// menu
+	LOGO: 'logo.png',
+};
+
+export class Menu extends Scene {
 	inc = 0;
 
-	constructor(engine) {
+	constructor(engine, Level) {
 		super(engine);
+
+		this.Level = Level;
+
+		const { assetManager } = engine;
 
 		const canvasCenterX = engine.canvas.width >> 1;
 
@@ -50,6 +47,8 @@ class Menu extends Scene {
 		arrows.graphic.color = '#ccc';
 		this.arrows = arrows;
 
+		// TODO: Fonts by
+
 		this.addText('A Game By', canvasCenterX, engine.canvas.height - 22, 9);
 		const creditsStr = names
 			.map((name) => name.split(' ')[0])
@@ -57,8 +56,18 @@ class Menu extends Scene {
 		this.addText(creditsStr, canvasCenterX, engine.canvas.height - 10, 9);
 	}
 
-	update() {
+	goToLevel() {
+		const Level = this.Level;
+		this.engine.pushScene(new Level(this.engine));
+	}
+
+	update(input) {
+		super.update(input);
 		this.arrows.visible = Math.floor(this.inc / 30) % 2 === 0;
+
+		if (input.keyPressed(' ')) {
+			this.goToLevel();
+		}
 
 		++this.inc;
 	}
@@ -80,34 +89,3 @@ class Menu extends Scene {
 		return entity;
 	}
 }
-
-let game;
-const assetManager = new AssetManager('./img/');
-Object.values(ASSETS).forEach((asset) => {
-	switch (true) {
-		case asset.endsWith('.png'):
-			assetManager.addImage(asset);
-			break;
-		case asset.endsWith('.mp3'):
-			assetManager.addAudio(asset);
-			break;
-	}
-});
-assetManager.onLoad(() => {
-	if (game) return;
-
-	game = new Game('ggj-2025-game', {
-		fps: 60,
-		gameLoopSettings: {
-			updateMode: 'always', // or set it to 'focus'
-			renderMode: 'onUpdate',
-		},
-	});
-	game.assetManager = assetManager;
-	game.backgroundColor = '#101010';
-
-	const scene = new Menu(game);
-	game.pushScene(scene);
-	game.render();
-});
-assetManager.loadAssets();
