@@ -1,5 +1,6 @@
 import {
 	AssetManager,
+	Sfx,
 	Game,
 	Scene,
 	Entity,
@@ -31,18 +32,18 @@ const settings = Object.assign(
 	JSON.parse(localStorage.getItem('settings')) ?? {},
 );
 
-const minY = 80;
-const maxY = 180;
+const minY = 280;
+const maxY = 380;
 const random = new Random(settings.seed);
 
 var death_screen = false;
 
 // delete old keys
 Object.keys(settings).forEach((key) => {
-		if (!(key in defaultSettings)) {
-			delete settings[key];
-		}
-	});
+	if (!(key in defaultSettings)) {
+		delete settings[key];
+	}
+});
 
 const ASSETS = {
 	MRCLEAN_PNG: 'mr_clean.png',
@@ -60,7 +61,15 @@ const ASSETS = {
 
 	// menu
 	LOGO: 'logo.png',
+
+	// audio
+	THUD: 'thud.wav',
+	THUNK: 'thunk.wav',
+	WHACK: 'whack.wav',
+	CRUNCH: 'crunch.wav',
 };
+
+const punch_sfx = [ASSETS.THUD, ASSETS.THUNK, ASSETS.WHACK];
 
 class Tiles extends Entity {
 	constructor(assetManager) {
@@ -157,10 +166,9 @@ class Character extends Entity {
 
 	hurt(pts) {
 		if (this.invFrames > 0) {
-			return;
+			return false;
 		}
 
-		console.log('Ouch!');
 		if (this.health <= pts) {
 			this.health = 0;
 			this.onDeath();
@@ -168,6 +176,7 @@ class Character extends Entity {
 			this.health -= pts;
 		}
 		this.invFrames = 30;
+		return true;
 	}
 
 	update(input) {
@@ -211,7 +220,12 @@ class Hitbox extends Entity {
 		if (this.time <= 10) {
 			const e = this.collideEntity(this.x, this.y, ['CHAR']);
 			if (e != null && e != this.owner && e instanceof Character) {
-				e.hurt(this.dmg);
+				if (e.hurt(this.dmg)) {
+					const asset = assetManager.audio.get(
+						punch_sfx[random.int(punch_sfx.length)],
+					);
+					Sfx.play(asset);
+				}
 			}
 		}
 
@@ -313,8 +327,6 @@ class Player extends Character {
 				this.scene.addEntity(e);
 				this.scene.addRenderable(e);
 				this.hitbox = e;
-
-				this.graphic.play('punch');
 				next_state = 2;
 			}
 
@@ -374,6 +386,8 @@ class Player extends Character {
 }
 
 class Grimey extends Character {
+	death_fade = 0.0;
+
 	constructor(x, y, assetManager) {
 		super(x, y);
 
@@ -401,12 +415,32 @@ class Grimey extends Character {
 
 		this.graphic.add('idle', [0], 60);
 		this.graphic.add('walk', [0, 1, 2, 3], 20);
-		this.graphic.add('punch', [4, 5, 6], 8);
+		this.graphic.add('punch', [4, 5, 6], 8, false);
+		this.graphic.add('death', [16, 17, 18], 60, false);
+	}
+
+	onDeath() {
+		const asset = assetManager.audio.get(ASSETS.CRUNCH);
+		Sfx.play(asset);
+
+		this.graphic.play('death');
+		this.collider = null;
 	}
 
 	update(input) {
 		super.update(input);
 		this.depth = -this.y;
+
+		if (this.health == 0) {
+			if (this.graphic.frame == 2) {
+				this.death_fade += 0.33 / 60.0;
+				this.graphic.alpha = 1.0 - this.death_fade;
+				if (this.death_fade > 1.0) {
+					super.onDeath();
+				}
+			}
+			return;
+		}
 
 		if (this.hitbox !== null) {
 			// hitbox died, we can hit again
@@ -543,8 +577,8 @@ let buildingIndices;
 {
 	const random = new Random(6465373);
 	buildingIndices = Array.from({ length: 100 }, (_, i) => {
-			return i % 5;
-		});
+		return i % 5;
+	});
 }
 
 class Buildings extends Entity {
@@ -644,9 +678,9 @@ class Level extends Scene {
 			p,
 			cameraManager,
 		].forEach((e) => {
-				this.addEntity(e);
-				this.addRenderable(e);
-			});
+			this.addEntity(e);
+			this.addRenderable(e);
+		});
 	}
 
 	furthest_room = 0;
@@ -672,7 +706,9 @@ class Level extends Scene {
 
 			for (var i = 0; i < n; i++) {
 				const e = new Grimey(
-					this.room_start + game.canvas.width + random.int(4) * 30.0,
+					this.room_start +
+						game.canvas.width * 0.5 +
+						random.int(4) * 35.0,
 					game.canvas.height - (i * 30.0 + 20.0),
 					assetManager,
 				);
@@ -690,18 +726,18 @@ class Level extends Scene {
 
 		if (settings.showHitboxes) {
 			this.entities.inScene.forEach((e) => {
-					if (!e.collider) return;
+				if (!e.collider) return;
 
-					const r = 3;
-					Draw.circle(
-						ctx,
-						{ type: 'fill', color: 'lime' },
-						e.x - r - camera.x,
-						e.y - r - camera.y,
-						r,
-					);
-					switch (e.collider.type) {
-						case 'rect':
+				const r = 3;
+				Draw.circle(
+					ctx,
+					{ type: 'fill', color: 'lime' },
+					e.x - r - camera.x,
+					e.y - r - camera.y,
+					r,
+				);
+				switch (e.collider.type) {
+					case 'rect':
 						Draw.rect(
 							ctx,
 							{ type: 'stroke', color: 'red' },
@@ -711,10 +747,10 @@ class Level extends Scene {
 							e.collider.h,
 						);
 						break;
-						default:
+					default:
 						console.warn('not supported');
-					}
-				});
+				}
+			});
 		}
 	}
 }
@@ -722,37 +758,37 @@ class Level extends Scene {
 let game;
 const assetManager = new AssetManager('./img/');
 Object.values(ASSETS).forEach((asset) => {
-		switch (true) {
-			case asset.endsWith('.png'):
+	switch (true) {
+		case asset.endsWith('.png'):
 			assetManager.addImage(asset);
 			break;
-			case asset.endsWith('.mp3'):
+		case asset.endsWith('.wav'):
 			assetManager.addAudio(asset);
 			break;
-		}
-	});
+	}
+});
 assetManager.onLoad(() => {
-		if (game) return;
+	if (game) return;
 
-		game = new Game('ggj-2025-game', {
-				fps: 60,
-				gameLoopSettings: {
-					updateMode: 'focus', // or set it to 'focus'
-					renderMode: 'onUpdate',
-				},
-			});
-		game.assetManager = assetManager;
-		game.backgroundColor = '#101010';
-
-		const menu = new Menu(game, Level, settings.autoLevel);
-		game.pushScene(menu);
-
-		if (settings.autoLevel) {
-			menu.goToLevel();
-		}
-
-		game.render();
-
-		initDebug(game, settings, defaultSettings);
+	game = new Game('ggj-2025-game', {
+		fps: 60,
+		gameLoopSettings: {
+			updateMode: 'focus', // or set it to 'focus'
+			renderMode: 'onUpdate',
+		},
 	});
+	game.assetManager = assetManager;
+	game.backgroundColor = '#101010';
+
+	const menu = new Menu(game, Level, settings.autoLevel);
+	game.pushScene(menu);
+
+	if (settings.autoLevel) {
+		menu.goToLevel();
+	}
+
+	game.render();
+
+	initDebug(game, settings, defaultSettings);
+});
 assetManager.loadAssets();
