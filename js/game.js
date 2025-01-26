@@ -556,8 +556,15 @@ class Level extends Scene {
 	update(input) {
 		super.update(input);
 
+		if (input.keyPressed('Escape')) {
+			this.engine.popScenes();
+		}
+
 		const dist = this.player.x - this.room_start;
-		if (dist > this.rooms[this.furthest_room]) {
+		if (
+			this.furthest_room < this.rooms.length &&
+			dist > this.rooms[this.furthest_room]
+		) {
 			this.room_start += this.rooms[this.furthest_room++];
 
 			const n = random.int(3) + 2;
@@ -565,7 +572,7 @@ class Level extends Scene {
 
 			for (var i = 0; i < n; i++) {
 				const e = new Grimey(
-					this.room_start + game.canvas.width,
+					this.room_start + game.canvas.width + random.int(4) * 30.0,
 					game.canvas.height - (i * 30.0 + 20.0),
 					assetManager,
 				);
@@ -573,13 +580,6 @@ class Level extends Scene {
 				this.addEntity(e);
 				this.addRenderable(e);
 			}
-		}
-	}
-
-	update(input) {
-		super.update(input);
-		if (input.keyPressed('Escape')) {
-			this.engine.popScenes();
 		}
 	}
 
