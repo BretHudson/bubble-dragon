@@ -945,7 +945,7 @@ assetManager.onLoad(() => {
 	game = new Game('ggj-2025-game', {
 		fps: 60,
 		gameLoopSettings: {
-			updateMode: 'always', // or set it to 'focus'
+			updateMode: 'focus', // or set it to 'focus'
 			renderMode: 'onUpdate',
 		},
 	});
