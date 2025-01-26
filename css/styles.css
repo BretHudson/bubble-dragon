@@ -17,13 +17,18 @@ body {
 .canvas-lord {
 	width: 100%;
 	padding: 5px;
+	border: 3px solid #ddd;
 	max-width: calc(var(--canvas-size) + 16px);
 	margin: 0 auto;
-	border: 3px solid #ddd;
+	background: black;
+	canvas {
+		padding: 0;
+		border: 0;
+		width: var(--canvas-size);
+	}
 	&:focus-within {
 		border-color: #bbf;
 	}
-	background: black;
 }
 
 .canvas-lord:has(.inspector) {
@@ -70,7 +75,8 @@ body {
 		--header-color: #2c759644;
 
 		header img {
-			opacity: 0.5;
+			filter: drop-shadow(0 0 8px #ffffffaa)
+				drop-shadow(0 0 8px #ffffffaa);
 		}
 	}
 
@@ -82,8 +88,10 @@ body {
 		img {
 			display: block;
 			margin: 0 auto;
+			filter: drop-shadow(0 0 0px transparent)
+				drop-shadow(0 0 0px transparent);
 
-			transition: opacity 0.3s;
+			transition: filter 0.3s;
 		}
 	}
 	main {
@@ -166,9 +174,9 @@ main::after {
 
 canvas {
 	background: black;
-	box-sizing: content-box;
 	display: block;
-	width: var(--canvas-size);
+	border: 3px solid #ddd;
+	width: calc(var(--canvas-size) + 16px);
 	max-width: 100%;
 	margin: 0 auto;
 	image-rendering: -moz-crisp-edges;
