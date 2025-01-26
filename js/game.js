@@ -50,6 +50,7 @@ const ASSETS = {
 	BADGUY_PNG: 'badguy.png',
 	BG_PNG: 'bg.png',
 	BG2_PNG: 'bg2.png',
+	BUBBLES2_PNG: 'bubbles2.png',
 	FLOORS_PNG: 'floors.png',
 
 	// backgrounds
@@ -72,6 +73,8 @@ const ASSETS = {
 	OW: 'ow.wav',
 	UGH: 'ugh.wav',
 	WUGH: 'wugh.wav',
+
+	POP: 'pop.wav',
 };
 
 const punch_sfx = [
@@ -92,9 +95,9 @@ class Tiles extends Entity {
 		this.graphic = new GraphicList();
 		this.depth = -1;
 
-		var s = Sprite.createRect(480*2, 49*2, '#101010');
+		var s = Sprite.createRect(480 * 2, 49 * 2, '#101010');
 		s.x = 0;
-		s.y = 360 - 49*2;
+		s.y = 360 - 49 * 2;
 		this.graphic.add(s);
 
 		const xSize = 7;
@@ -122,11 +125,23 @@ class BubbleTrap extends Entity {
 	constructor(x, y, dir) {
 		super(x, y);
 
-		this.graphic = Sprite.createRect(32, 32, '#ffffff');
+		this.graphic = new Sprite(
+			assetManager.sprites.get(ASSETS.BUBBLES2_PNG),
+		);
 		this.graphic.centerOrigin();
+		this.graphic.scale = 2.0;
 		this.baseline = y;
 		this.dir = dir;
 		this.depth = -y;
+		this.collider = {
+			type: 'rect',
+			tag: 'BUBBLE',
+			// yes i moved it slightly down on purpose
+			x: -20,
+			y: -10,
+			w: 40,
+			h: 40,
+		};
 
 		console.log(x, y);
 	}
@@ -134,8 +149,42 @@ class BubbleTrap extends Entity {
 	update(input) {
 		this.t += 10.0 / 60.0;
 
-		this.x += this.dir*1.5;
-		this.y = this.baseline + Math.sin(this.t * 0.5)*16.0;
+		this.x += this.dir * 1.5;
+		this.y = this.baseline + Math.sin(this.t * 0.5) * 16.0;
+
+		var view_x = this.x - this.scene.camera.x;
+		if (view_x < 0.0 || view_x >= this.scene.engine.canvas.width) {
+			if (this.caught) {
+				this.caught.bubble = null;
+				this.caught.graphic.y = -80.0;
+				this.caught.graphic.scale = 1.0;
+			}
+
+			Sfx.play(assetManager.audio.get(ASSETS.POP));
+
+			this.scene.removeRenderable(this);
+			this.scene.removeEntity(this);
+			this.scene = null;
+		}
+
+		if (!this.caught) {
+			// if an enemy gets caught by a bubble we wanna drag them with it
+			const e = this.collideEntity(this.x, this.y, ['CHAR']);
+			if (
+				e != null &&
+				e != this.owner &&
+				e instanceof Grimey &&
+				!e.bubble
+			) {
+				e.bubble = this;
+				e.anim_state = -1;
+				e.graphic.scale = 0.5;
+				e.graphic.y = -30.0;
+				e.graphic.play('stuck');
+
+				this.caught = e;
+			}
+		}
 	}
 }
 
@@ -293,6 +342,9 @@ const states2anim = ['idle', 'walk', 'punch'];
 class Player extends Character {
 	flip = false;
 
+	bubble_ticks = 0;
+	bubbles = 3;
+
 	constructor(x, y, assetManager) {
 		super(x, y);
 		this.health = 10;
@@ -345,6 +397,14 @@ class Player extends Character {
 			return;
 		}
 
+		if (this.bubbles < 3) {
+			this.bubble_ticks += 1;
+			if (this.bubble_ticks > 120) {
+				this.bubbles += 1;
+				this.bubble_ticks = 0;
+			}
+		}
+
 		let walking = false;
 		var next_state = 0;
 		if (this.hitbox !== null) {
@@ -369,8 +429,15 @@ class Player extends Character {
 			this.y += speed * moveVec.y;
 			this.y = Math.clamp(this.y, minY, maxY);
 
-			if (input.keyPressed('z')) {
-				var e = new BubbleTrap(this.x, this.y - 60.0, this.flip ? -1.0 : 1.0);
+			if (input.keyPressed('z') && this.bubbles > 0) {
+				this.bubbles -= 1;
+				this.bubble_ticks = 0;
+
+				var e = new BubbleTrap(
+					this.x,
+					this.y - 50.0,
+					this.flip ? -1.0 : 1.0,
+				);
 				this.scene.addEntity(e);
 				this.scene.addRenderable(e);
 			}
@@ -395,7 +462,7 @@ class Player extends Character {
 	}
 
 	render(ctx, camera) {
-		// this.graphic.x = -(this.y - minY) * 1.0;
+		// this.graphic.x = -(this.y - minY);
 		this.graphic.x = this.flip ? -10 : 10;
 		this.graphic.scaleX = this.flip ? -1.0 : 1.0;
 
@@ -436,7 +503,20 @@ class Player extends Character {
 			16.0,
 		);
 
-		// Draw.rect(ctx, rectOptions, (this.x + this.collider.x) - camera.x, (this.y + this.collider.y) - camera.y, this.collider.w, this.collider.h);
+		const imageOptions = {
+			angle: 0.0,
+			scaleX: 1.0,
+			scaleY: 1.0,
+			originX: 0,
+			originY: 0,
+			offsetX: 0,
+			offsetY: 0,
+			imageSrc: assetManager.sprites.get(ASSETS.BUBBLES2_PNG).image,
+		};
+
+		for (var i = 0; i < this.bubbles; i++) {
+			Draw.image(ctx, imageOptions, 8.0 + i * 32.0, 32.0);
+		}
 	}
 }
 
@@ -472,6 +552,7 @@ class Grimey extends Character {
 		this.graphic.add('walk', [0, 1, 2, 3], 20);
 		this.graphic.add('punch', [4, 5, 6], 8, false);
 		this.graphic.add('death', [12, 13, 14], 60, false);
+		this.graphic.add('stuck', [14], 60, false);
 	}
 
 	onDeath() {
@@ -497,6 +578,10 @@ class Grimey extends Character {
 			return;
 		} else if (over) {
 			return;
+		} else if (this.bubble != null) {
+			this.x = this.bubble.x;
+			this.y = this.bubble.y;
+			return;
 		}
 
 		if (this.hitbox !== null) {
@@ -514,8 +599,12 @@ class Grimey extends Character {
 				const speed = 0.5;
 				var dx = Math.sign(this.scene.player.x - this.x) * speed;
 				var dy = Math.sign(this.scene.player.y - this.y) * speed;
-				this.x += this.collide(this.x + dx, this.y) ? 0.0 : dx;
-				this.y += this.collide(this.x, this.y + dy) ? 0.0 : dy;
+				this.x += this.collide(this.x + dx, this.y, ['CHAR'])
+					? 0.0
+					: dx;
+				this.y += this.collide(this.x, this.y + dy, ['CHAR'])
+					? 0.0
+					: dy;
 				this.flip = dx ? dx < 0 : dy < 0;
 
 				next_state = 1;
@@ -535,14 +624,17 @@ class Grimey extends Character {
 			}
 
 			if (this.x + 400.0 < this.scene.player.x) {
-				console.log("Offscreened!");
+				console.log('Offscreened!');
 				super.onDeath();
 			}
 		}
+
+		this.graphic.scaleX = this.flip ? -1.0 : 1.0;
 	}
 
 	render(ctx, camera) {
-		this.graphic.scaleX = this.flip ? -1.0 : 1.0;
+		// this.graphic.x = -(this.y - minY) + (this.flip ? -10 : 10);
+		this.graphic.x = this.flip ? -10 : 10;
 		super.render(ctx, camera);
 	}
 }
