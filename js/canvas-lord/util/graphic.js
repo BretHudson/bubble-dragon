@@ -75,8 +75,8 @@ export class GraphicList extends Graphic {
         this.x = x;
         this.y = y;
         moveCanvas(() => {
-            this.graphics.forEach((graphic) => graphic.render(ctx, camera));
-        })(ctx, this, x, y);
+				this.graphics.forEach((graphic) => graphic.render(ctx, camera));
+			})(ctx, this, x, y);
         this.x = preX;
         this.y = preY;
     }
@@ -100,8 +100,8 @@ export class Text extends Graphic {
         if (!textCtx)
             throw new Error();
         const { font = 'sans-serif', size = 10, align = 'left', baseline = 'top', // TODO(bret): check if this is the default we want :/
-        // count,
-         } = this;
+			// count,
+		} = this;
         textCtx.save();
         const _size = typeof size === 'number' ? `${size}px` : size;
         textCtx.font = `${_size} ${font}`;
@@ -256,7 +256,7 @@ export class AnimatedSprite extends Graphic {
         this.animations.set(name, animation);
     }
     play(name) {
-		if (name === this.currentAnimation?.name) return;
+		// if (name === this.currentAnimation?.name) return;
         this.inc = 0;
         this.currentAnimation =
             name !== undefined ? this.animations.get(name) : name;
@@ -478,27 +478,27 @@ export class Emitter extends Graphic {
         ctx.fillStyle = gradient;
         ctx.fillRect(0, 0, resolution, 1);
         const samples = Array.from({ length: resolution }, (_, i) => {
-            const { data } = ctx.getImageData(i, 0, 1, 1);
-            const hex = [...data].map((c) => c.toString(16).padStart(2, '0'));
-            return '#' + hex.join('');
-        });
+				const { data } = ctx.getImageData(i, 0, 1, 1);
+				const hex = [...data].map((c) => c.toString(16).padStart(2, '0'));
+				return '#' + hex.join('');
+			});
         type.colorEase = ease;
         return this.assignToType(type, 'color', { ctx, samples });
     }
     setMotion(name, moveAngle, distance, duration, moveAngleRange = 0, distanceRange = 0, durationRange = 0, ease) {
         const type = this.getType(name);
         this.assignToType(type, 'moveAngle', {
-            min: moveAngle,
-            max: moveAngle + moveAngleRange,
-        });
+				min: moveAngle,
+				max: moveAngle + moveAngleRange,
+			});
         this.assignToType(type, 'distance', {
-            min: distance,
-            max: distance + distanceRange,
-        });
+				min: distance,
+				max: distance + distanceRange,
+			});
         this.assignToType(type, 'duration', {
-            min: duration,
-            max: duration + durationRange,
-        });
+				min: duration,
+				max: duration + durationRange,
+			});
         type.motionEase = ease;
         return type;
     }
@@ -509,14 +509,14 @@ export class Emitter extends Graphic {
         const { random } = this;
         const moveAngle = type.moveAngle
             ? (random.range(type.moveAngle.min, type.moveAngle.max) * Math.PI) /
-                180.0
+			180.0
             : 0;
         const angle = type.angle
             ? random.range(type.angle.min, type.angle.max)
             : 0;
         const rotation = type.rotation
             ? random.range(type.rotation.min, type.rotation.max) *
-                this.random.sign()
+			this.random.sign()
             : 0;
         const duration = type.duration
             ? random.range(type.duration.min, type.duration.max)
@@ -546,18 +546,18 @@ export class Emitter extends Graphic {
     }
     update() {
         [...this.#types.entries()].forEach(([name, type]) => {
-            type.particles = type.particles.filter((particle) => particle.elapsed < particle.duration);
-            type.particles.forEach((particle) => {
-                const motionT = type.motionEase?.(particle.t) ?? particle.t;
-                particle.x = Math.lerp(particle.startX, particle.endX, motionT);
-                particle.y = Math.lerp(particle.startY, particle.endY, motionT);
-                particle.t = particle.elapsed / particle.duration;
-                const angleT = type.rotationEase?.(particle.t) ?? particle.t;
-                particle.angle =
-                    particle.startAngle + particle.rotation * angleT;
-                ++particle.elapsed;
-            });
-        });
+				type.particles = type.particles.filter((particle) => particle.elapsed < particle.duration);
+				type.particles.forEach((particle) => {
+						const motionT = type.motionEase?.(particle.t) ?? particle.t;
+						particle.x = Math.lerp(particle.startX, particle.endX, motionT);
+						particle.y = Math.lerp(particle.startY, particle.endY, motionT);
+						particle.t = particle.elapsed / particle.duration;
+						const angleT = type.rotationEase?.(particle.t) ?? particle.t;
+						particle.angle =
+							particle.startAngle + particle.rotation * angleT;
+						++particle.elapsed;
+					});
+			});
     }
     render(ctx, camera) {
         const x = this.x - camera.x * this.scrollX + (this.parent?.x ?? 0);
@@ -574,38 +574,38 @@ export class Emitter extends Graphic {
         if (!blendCtx)
             throw new Error();
         [...this.#types.entries()].forEach(([name, type]) => {
-            type.particles.forEach((particle) => {
-                this.alpha = 1;
-                if (particle.type.alpha) {
-                    const { start, end } = particle.type.alpha;
-                    this.alpha = Math.lerp(start, end, particle.t);
-                }
-                // TODO(bret): Draw.image now supports blending colors, might wanna switch this over!
-                if (particle.type.color) {
-                    const { samples } = particle.type.color;
-                    // TODO(bret): we'll never hit 1.0 :(
-                    const colorT = type.colorEase?.(particle.t) ?? particle.t;
-                    const i = Math.round(colorT * (samples.length - 1));
-                    blendCtx.save();
-                    blendCtx.clearRect(0, 0, width, height);
-                    blendCtx.drawImage(image, 0, 0);
-                    blendCtx.globalCompositeOperation = 'source-atop';
-                    blendCtx.fillStyle = samples[i];
-                    blendCtx.fillRect(0, 0, width, height);
-                    blendCtx.restore();
-                }
-                this.imageSrc = blendCanvas;
-                const drawX = x + particle.x;
-                const drawY = y + particle.y;
-                this.angle = particle.angle;
-                // TODO(bret): unhardcode centered particles!
-                this.offsetX = -(width >> 1);
-                this.originX = this.offsetX;
-                this.offsetY = -(height >> 1);
-                this.originY = this.offsetY;
-                Draw.image(ctx, this, drawX, drawY);
-            });
-        });
+				type.particles.forEach((particle) => {
+						this.alpha = 1;
+						if (particle.type.alpha) {
+							const { start, end } = particle.type.alpha;
+							this.alpha = Math.lerp(start, end, particle.t);
+						}
+						// TODO(bret): Draw.image now supports blending colors, might wanna switch this over!
+						if (particle.type.color) {
+							const { samples } = particle.type.color;
+							// TODO(bret): we'll never hit 1.0 :(
+							const colorT = type.colorEase?.(particle.t) ?? particle.t;
+							const i = Math.round(colorT * (samples.length - 1));
+							blendCtx.save();
+							blendCtx.clearRect(0, 0, width, height);
+							blendCtx.drawImage(image, 0, 0);
+							blendCtx.globalCompositeOperation = 'source-atop';
+							blendCtx.fillStyle = samples[i];
+							blendCtx.fillRect(0, 0, width, height);
+							blendCtx.restore();
+						}
+						this.imageSrc = blendCanvas;
+						const drawX = x + particle.x;
+						const drawY = y + particle.y;
+						this.angle = particle.angle;
+						// TODO(bret): unhardcode centered particles!
+						this.offsetX = -(width >> 1);
+						this.originX = this.offsetX;
+						this.offsetY = -(height >> 1);
+						this.originY = this.offsetY;
+						Draw.image(ctx, this, drawX, drawY);
+					});
+			});
     }
 }
 //# sourceMappingURL=graphic.js.map
