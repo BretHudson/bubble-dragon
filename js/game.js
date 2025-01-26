@@ -30,11 +30,11 @@ const defaultSettings = {
 	cameraOuter: 132,
 	cameraSpeed: 10,
 };
-const settings = Object.assign(
-	{},
-	defaultSettings,
-	JSON.parse(localStorage.getItem('settings')) ?? {},
-);
+let localStorageSettings = {};
+if (window.debugEnabled) {
+	localStorageSettings = JSON.parse(localStorage.getItem('settings')) ?? {};
+}
+const settings = Object.assign({}, defaultSettings, localStorageSettings);
 
 const minY = 200;
 const maxY = 380;
@@ -177,8 +177,6 @@ class BubbleTrap extends Entity {
 			w: 40,
 			h: 40,
 		};
-
-		console.log(x, y);
 	}
 
 	update(input) {
@@ -990,7 +988,6 @@ class Buildings extends Entity {
 			(a, v) => a + v,
 			0,
 		);
-		console.log(totalWidth);
 		const tileset = new Tileset(
 			asset,
 			totalWidth * 50,
@@ -1013,7 +1010,6 @@ class Buildings extends Entity {
 
 		const renderBuilding = (_x, _y, building) => {
 			const [startX, startY, w, h] = building;
-			console.log({ startX, startY, w, h });
 
 			for (let y = 0; y < h; ++y) {
 				for (let x = 0; x < w; ++x) {
