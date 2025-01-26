@@ -15,7 +15,7 @@ import {
 	GraphicList,
 } from './canvas-lord/util/graphic.js';
 import { initDebug } from './debug.js';
-import { Menu } from './menu.js';
+import { Menu, MenuOptions } from './menu.js';
 
 const defaultSettings = {
 	autoLevel: false,
@@ -791,6 +791,56 @@ class Buildings extends Entity {
 	}
 }
 
+const pauseKeys = ['p', 'P', 'Escape'];
+
+class PauseScreen extends Scene {
+	constructor(engine) {
+		super(engine);
+
+		const { width, height } = this.engine.canvas;
+
+		const rect = Sprite.createRect(width, height, '#101010');
+		rect.alpha = 0.3;
+		const rectEntity = new Entity();
+		rectEntity.graphic = rect;
+		this.addEntity(rectEntity);
+		this.addRenderable(rectEntity);
+
+		const yPad = 20;
+
+		const text = new Text('PAUSED');
+		text.font = 'Skullboy';
+		text.size = 48;
+		text.centerOO();
+		const textEntity = new Entity(width >> 1, height >> 1);
+		textEntity.y -= yPad * 2;
+		textEntity.graphic = text;
+		this.addEntity(textEntity);
+		this.addRenderable(textEntity);
+
+		const options = new MenuOptions(width >> 1, height >> 1, [
+			{
+				str: 'Resume',
+				callback: () => {
+					this.engine.popScenes();
+				},
+			},
+			{
+				str: 'Quit',
+				callback: () => {
+					// remove pause
+					this.engine.popScenes();
+					// remove level
+					this.engine.popScenes();
+				},
+			},
+		]);
+		options.y += yPad;
+		this.addEntity(options);
+		this.addRenderable(options);
+	}
+}
+
 class Level extends Scene {
 	constructor(engine) {
 		super(engine);
@@ -849,11 +899,19 @@ class Level extends Scene {
 	room_start = 0.0;
 	rooms = [320.0, 320.0, 320.0, 400.0];
 
+	blur() {
+		this.pauseGame();
+	}
+
+	pauseGame() {
+		this.engine.pushScene(new PauseScreen(this.engine));
+	}
+
 	update(input) {
 		super.update(input);
 
-		if (input.keyPressed('Escape')) {
-			this.engine.popScenes();
+		if (input.keyPressed(pauseKeys)) {
+			this.pauseGame();
 		}
 
 		const dist = this.player.x - this.room_start;
@@ -951,6 +1009,15 @@ assetManager.onLoad(() => {
 	});
 	game.assetManager = assetManager;
 	game.backgroundColor = '#101010';
+	game.listeners.blur.add(() => {
+		const scene = game.currentScenes?.[0];
+		if (scene && scene.blur) {
+			scene.blur();
+			window.requestAnimationFrame(() => {
+				game.render();
+			});
+		}
+	});
 
 	const menu = new Menu(game, Level, settings.autoLevel);
 	game.pushScene(menu);
