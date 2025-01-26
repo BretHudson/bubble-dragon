@@ -791,6 +791,46 @@ class Buildings extends Entity {
 	}
 }
 
+const pauseKeys = ['p', 'P', 'Escape'];
+const unpauseKeys = ['p', 'P', ' ', 'Enter', 'Return', 'Z', 'z', 'X', 'x'];
+
+class PauseScreen extends Scene {
+	constructor(engine) {
+		super(engine);
+
+		const { width, height } = this.engine.canvas;
+
+		const rect = Sprite.createRect(width, height, '#101010');
+		rect.alpha = 0.3;
+		const rectEntity = new Entity();
+		rectEntity.graphic = rect;
+		this.addEntity(rectEntity);
+		this.addRenderable(rectEntity);
+
+		const text = new Text('ur paused dude');
+		text.font = 'Skullboy';
+		text.size = 32;
+		text.centerOO();
+		const textEntity = new Entity(width >> 1, height >> 1);
+		textEntity.graphic = text;
+		this.addEntity(textEntity);
+		this.addRenderable(textEntity);
+	}
+
+	update(input) {
+		if (input.keyPressed('Escape')) {
+			// remove pause
+			this.engine.popScenes();
+			// remove level
+			this.engine.popScenes();
+		}
+
+		if (input.keyPressed(unpauseKeys)) {
+			this.engine.popScenes();
+		}
+	}
+}
+
 class Level extends Scene {
 	constructor(engine) {
 		super(engine);
@@ -849,11 +889,15 @@ class Level extends Scene {
 	room_start = 0.0;
 	rooms = [320.0, 320.0, 320.0, 400.0];
 
+	_pause() {
+		this.engine.pushScene(new PauseScreen(this.engine));
+	}
+
 	update(input) {
 		super.update(input);
 
-		if (input.keyPressed('Escape')) {
-			this.engine.popScenes();
+		if (input.keyPressed(pauseKeys)) {
+			this._pause();
 		}
 
 		const dist = this.player.x - this.room_start;

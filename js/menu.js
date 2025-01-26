@@ -122,7 +122,7 @@ class MenuCredit extends Entity {
 export class Menu extends Scene {
 	inc = 0;
 
-	optionSelected = 1;
+	optionSelected = 0;
 
 	creditsOpen = false;
 	creditsTimer = 0;
