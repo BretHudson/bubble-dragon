@@ -5,6 +5,7 @@ import {
 	Scene,
 	Entity,
 	Draw,
+	Tileset,
 } from './canvas-lord/canvas-lord.js';
 import { Vec2 } from './canvas-lord/util/math.js';
 import { Random } from './canvas-lord/util/random.js';
@@ -15,13 +16,16 @@ import {
 	GraphicList,
 } from './canvas-lord/util/graphic.js';
 import { initDebug } from './debug.js';
-import { Menu } from './menu.js';
+import { Menu, MenuOptions } from './menu.js';
 
 const defaultSettings = {
 	autoLevel: false,
 	showCamera: false,
 	showHitboxes: false,
+	invincible: false,
+	hideOverlay: false,
 	seed: undefined,
+	playerSpeed: 1,
 	cameraInner: 40,
 	cameraOuter: 132,
 	cameraSpeed: 10,
@@ -32,8 +36,9 @@ const settings = Object.assign(
 	JSON.parse(localStorage.getItem('settings')) ?? {},
 );
 
-const minY = 280;
+const minY = 200;
 const maxY = 380;
+const centerY = (maxY - minY) / 2 + minY;
 const random = new Random(settings.seed);
 
 var screen_min = 0.0;
@@ -43,10 +48,18 @@ var over = false;
 
 // delete old keys
 Object.keys(settings).forEach((key) => {
-		if (!(key in defaultSettings)) {
-			delete settings[key];
-		}
-	});
+	if (!(key in defaultSettings)) {
+		delete settings[key];
+	}
+});
+
+const loadFont = async (name, fileName) => {
+	const font = new FontFace(name, `url("${fileName}")`);
+	await font.load();
+	document.fonts.add(font);
+};
+await loadFont('Skullboy', './fonts/ChevyRay - Skullboy.ttf');
+await loadFont('Skullboy Mono', './fonts/ChevyRay - Skullboy Mono.ttf');
 
 const ASSETS = {
 	MRCLEAN_PNG: 'mr_clean.png',
@@ -54,14 +67,15 @@ const ASSETS = {
 	BG_PNG: 'bg.png',
 	BG2_PNG: 'bg2.png',
 	BUBBLES2_PNG: 'bubbles2.png',
-	FLOORS_PNG: 'floors.png',
+	FLOOR_PNG: 'floor.png',
+	FLOOR_GRADIENT_PNG: 'floor_gradient.png',
 
 	// backgrounds
 	BG_SUNSET: 'bg_0_sunset.png', // static
 	BG_CLOUD: 'bg_1_clouds.png', // static
 	BG_PYRAMIDS: 'pyramids.png', // parallax
 	BG_SKYSCRAPERS: 'parallax_parts_skyscrapers.png', // parallax
-	BG_FG: 'parallax_parts_fg.png', // parallax
+	BG_FG: 'parallax_parts_fg.png', // tiled
 
 	// menu
 	LOGO: 'logo.png',
@@ -80,6 +94,15 @@ const ASSETS = {
 	POP: 'pop.wav',
 };
 
+const DEPTH = {
+	BACKGROUND: 1000,
+	SKYSCRAPERS: 100,
+	TILES: 10,
+	BUILDINGS: 9,
+	OVERLAY: -1000,
+	CAMERA: -Infinity,
+};
+
 const punch_sfx = [
 	ASSETS.THUD,
 	ASSETS.THUNK,
@@ -90,32 +113,41 @@ const punch_sfx = [
 	ASSETS.WUGH,
 ];
 
+const tileStartY = minY - 10;
+
 class Tiles extends Entity {
 	constructor(assetManager) {
 		super(0, 0);
 
-		const asset = assetManager.sprites.get(ASSETS.FLOORS_PNG);
+		const asset = assetManager.sprites.get(ASSETS.FLOOR_PNG);
 		this.graphic = new GraphicList();
-		this.depth = -1;
+		this.depth = DEPTH.TILES;
 
-		var s = Sprite.createRect(480 * 2, 49 * 2, '#101010');
+		const { width, height } = asset;
+
+		var s = Sprite.createRect(width * 10, 480, '#101010');
 		s.x = 0;
-		s.y = 360 - 49 * 2;
+		s.y = tileStartY;
 		this.graphic.add(s);
 
-		const xSize = 7;
+		const xSize = 5;
 		for (var i = -xSize; i <= xSize; i++) {
-			for (var j = 1; j <= 2; j++) {
-				var xx = i * 93 + j * 49 * 1.0;
-				var yy = 180 * 2 - j * 49;
-
-				this.graphic.add(new Sprite(asset, xx, yy));
-			}
+			this.graphic.add(new Sprite(asset, width * i, tileStartY));
 		}
+
+		const gradient = new Sprite(
+			assetManager.sprites.get(ASSETS.FLOOR_GRADIENT_PNG),
+			0,
+			tileStartY,
+		);
+		gradient.alpha = 0.7;
+		gradient.scaleX = (width * 10) / gradient.width;
+		this.graphic.add(gradient);
 	}
 
 	update(input) {
-		const limit = 93 * 3;
+		const asset = assetManager.sprites.get(ASSETS.FLOOR_PNG);
+		const limit = asset.width * 3;
 		this.x = Math.floor(this.scene.camera.x / limit) * limit;
 	}
 }
@@ -153,7 +185,7 @@ class BubbleTrap extends Entity {
 		this.t += 10.0 / 60.0;
 
 		this.x += this.dir * 1.5;
-		this.graphic.y = (Math.sin(this.t * 0.5) * 8.0) - 50.0;
+		this.graphic.y = Math.sin(this.t * 0.5) * 8.0 - 50.0;
 
 		var view_x = this.x - this.scene.camera.x;
 		if (view_x < 0.0 || view_x >= this.scene.engine.canvas.width) {
@@ -174,11 +206,7 @@ class BubbleTrap extends Entity {
 		if (!this.caught) {
 			// if an enemy gets caught by a bubble we wanna drag them with it
 			const e = this.collideEntity(this.x, this.y, ['CHAR']);
-			if (
-				e != null &&
-				e != this.owner &&
-				!e.bubble
-			) {
+			if (e != null && e != this.owner && !e.bubble) {
 				if (e instanceof Boss) {
 					e.anim_state = -1;
 					e.dx = 20.0 * this.dir;
@@ -203,31 +231,6 @@ class BubbleTrap extends Entity {
 	}
 }
 
-class Background extends Entity {
-	constructor(asset_name, canvas_height, assetManager) {
-		super(0, 0);
-		const asset = assetManager.sprites.get(asset_name);
-
-		this.graphic = new Sprite(asset);
-		this.graphic.scale = 0.5;
-		this.depth = 1;
-
-		if (asset_name == ASSETS.BG2_PNG) {
-			this.graphic.scrollX = 0.5;
-			this.depth = 2;
-		}
-
-		this.y = canvas_height - 100 - asset.height * 0.5;
-	}
-
-	update(input) {
-		const limit = 1000;
-		this.x =
-			Math.floor((this.scene.camera.x * this.graphic.scrollX) / limit) *
-			limit;
-	}
-}
-
 class CoolScreen extends Entity {
 	fade = 0.0;
 	boss_txt = false;
@@ -249,7 +252,7 @@ class CoolScreen extends Entity {
 		this.txt.scrollX = 0.0;
 		this.txt.centerOrigin();
 		this.graphic.add(this.txt);
-		this.depth = -1000;
+		this.depth = DEPTH.OVERLAY;
 	}
 
 	update(input) {
@@ -263,7 +266,7 @@ class CoolScreen extends Entity {
 
 				const e = new Boss(
 					this.scene.room_start +
-					this.scene.engine.canvas.width * 0.5,
+						this.scene.engine.canvas.width * 0.5,
 					this.scene.engine.canvas.height * 0.5,
 					assetManager,
 				);
@@ -282,6 +285,8 @@ class CoolScreen extends Entity {
 		}
 
 		this.bg.alpha = this.fade;
+
+		this.visible = !settings.hideOverlay;
 	}
 }
 
@@ -340,6 +345,16 @@ class Character extends Entity {
 		this.scene = null;
 	}
 
+	getImageXOffset() {
+		return 0;
+		return -(this.y - minY) + (centerY - minY);
+	}
+
+	updateGraphic() {
+		this.graphic.x = this.getImageXOffset();
+		this.graphic.x += this.flip ? -this.flipOffset : this.flipOffset;
+	}
+
 	hurt(pts) {
 		if (this.invFrames > 0) {
 			return false;
@@ -387,10 +402,34 @@ class Character extends Entity {
 			this.invFrames -= 1;
 		}
 
+		this.graphic.scaleX = this.flip ? -1.0 : 1.0;
 		this.hitFlash = this.invFrames % 8 >= 4;
 	}
 
 	render(ctx, camera) {
+		const drawX = this.x - camera.x;
+		const drawY = this.y - camera.y;
+
+		const r = 9;
+		const circleOptions = {
+			type: 'fill',
+			color: '#00000033',
+			radius: r,
+			scaleX: 2,
+		};
+		Draw.circle(ctx, circleOptions, drawX - r * 2, drawY - r, r);
+		Draw.circle(
+			ctx,
+			{
+				...circleOptions,
+				color: '#ffffff22',
+				type: 'stroke',
+			},
+			drawX - r * 2 + this.getImageXOffset(),
+			drawY - r,
+			r,
+		);
+
 		this.graphic.color = this.hitFlash ? 'white' : undefined;
 		super.render(ctx, camera);
 	}
@@ -423,20 +462,20 @@ class Hitbox extends Entity {
 		if (this.time <= 10) {
 			const ents = this.collideEntities(this.x, this.y, ['CHAR']);
 			ents.forEach((e) => {
-					if (e != null && e != this.owner && e instanceof Character) {
-						if (e.hurt(this.dmg)) {
-							if (e.health == 0) {
-								e.dx = 30.0*this.dir;
-								e.friction = 0.2;
-							}
-
-							const asset = assetManager.audio.get(
-								random.choose(punch_sfx),
-							);
-							Sfx.play(asset);
+				if (e != null && e != this.owner && e instanceof Character) {
+					if (e.hurt(this.dmg)) {
+						if (e.health == 0) {
+							e.dx = 30.0 * this.dir;
+							e.friction = 0.2;
 						}
+
+						const asset = assetManager.audio.get(
+							random.choose(punch_sfx),
+						);
+						Sfx.play(asset);
 					}
-				});
+				}
+			});
 		}
 
 		this.time -= 1;
@@ -462,33 +501,14 @@ class Player extends Character {
 	bubbles = 3;
 
 	constructor(x, y, assetManager) {
-		super(x, y);
-		this.health = 10;
-
-		const scale = 1.0;
 		const asset = assetManager.sprites.get('mr_clean.png');
-		const w = 80.0 * scale;
-		const h = 80.0 * scale;
-
-		this.collider = {
-			type: 'rect',
-			tag: 'CHAR',
-			x: -10,
-			y: -20,
-			w: 20,
-			h: 20,
-		};
-
-		this.graphic = new AnimatedSprite(asset, 80, 80);
-		this.graphic.centerOO();
-		this.graphic.originY = 0;
-		this.graphic.offsetY = 0;
-		this.graphic.y = -h;
-		this.graphic.scale = scale;
+		super(x, y, asset, 10);
 
 		this.graphic.add('idle', [0], 60);
 		this.graphic.add('walk', [0, 1, 2, 3], 20);
 		this.graphic.add('punch', [4, 5, 6], 8);
+
+		this.flipOffset = 10;
 	}
 
 	onDeath() {
@@ -497,7 +517,7 @@ class Player extends Character {
 				'GAME OVER!',
 				this.scene.engine.canvas.width,
 				this.scene.engine.canvas.height,
-				false
+				false,
 			);
 			this.scene.addEntity(e);
 			this.scene.addRenderable(e);
@@ -509,10 +529,11 @@ class Player extends Character {
 	}
 
 	update(input) {
-		super.update(input);
 		if (this.over) {
 			return;
 		}
+
+		if (settings.invincible) this.health = 10;
 
 		if (this.bubbles < 3) {
 			this.bubble_ticks += 1;
@@ -530,7 +551,7 @@ class Player extends Character {
 				this.hitbox = null;
 			}
 		} else {
-			const speed = 1.0;
+			const speed = settings.playerSpeed;
 			let moveVec = new Vec2(0, 0);
 
 			moveVec.x = +input.keyCheck(keysR) - +input.keyCheck(keysL);
@@ -550,11 +571,7 @@ class Player extends Character {
 				this.bubbles -= 1;
 				this.bubble_ticks = 0;
 
-				var e = new BubbleTrap(
-					this.x,
-					this.y,
-					this.flip ? -1.0 : 1.0,
-				);
+				var e = new BubbleTrap(this.x, this.y, this.flip ? -1.0 : 1.0);
 				this.scene.addEntity(e);
 				this.scene.addRenderable(e);
 			}
@@ -575,26 +592,10 @@ class Player extends Character {
 			}
 		}
 
-		this.depth = -this.y;
+		super.update(input);
 	}
 
 	render(ctx, camera) {
-		// this.graphic.x = -(this.y - minY);
-		this.graphic.x = this.flip ? -10 : 10;
-		this.graphic.scaleX = this.flip ? -1.0 : 1.0;
-
-		const drawX = this.x - camera.x;
-		const drawY = this.y - camera.y;
-
-		const r = 12;
-		const circleOptions = {
-			type: 'fill',
-			color: '#88888888',
-			radius: r,
-			scaleX: 2,
-		};
-		Draw.circle(ctx, circleOptions, drawX - r * 2, drawY - r, r);
-
 		super.render(ctx, camera);
 
 		const rectOptions = {
@@ -676,7 +677,7 @@ class Boss extends Character {
 				'YOU WON!',
 				this.scene.engine.canvas.width,
 				this.scene.engine.canvas.height,
-				false
+				false,
 			);
 			this.scene.addEntity(e);
 			this.scene.addRenderable(e);
@@ -742,29 +743,8 @@ class Grimey extends Character {
 	death_fade = 0.0;
 
 	constructor(x, y, assetManager) {
-		super(x, y);
-
-		const scale = 1.0;
 		const asset = assetManager.sprites.get('badguy.png');
-		const w = 80.0 * scale;
-		const h = 80.0 * scale;
-
-		this.collider = {
-			type: 'rect',
-			tag: 'CHAR',
-			x: -10,
-			y: -20,
-			w: 20,
-			h: 20,
-		};
-		this.health = 6;
-
-		this.graphic = new AnimatedSprite(asset, 80, 80);
-		this.graphic.centerOO();
-		this.graphic.originY = 0;
-		this.graphic.offsetY = 0;
-		this.graphic.y = -h;
-		this.graphic.scale = scale;
+		super(x, y, asset, 6);
 
 		this.graphic.add('idle', [0], 60);
 		this.graphic.add('walk', [0, 1, 2, 3], 20);
@@ -784,9 +764,6 @@ class Grimey extends Character {
 	}
 
 	update(input) {
-		super.update(input);
-		this.depth = -this.y;
-
 		if (this.health == 0) {
 			super.update(input);
 
@@ -848,19 +825,13 @@ class Grimey extends Character {
 				this.anim_state = next_state;
 			}
 
-			if (this.x + 400.0 < this.scene.player.x) {
+			if (this.x < this.scene.player.x - 400.0) {
 				console.log('Offscreened!');
 				super.onDeath();
 			}
 		}
 
-		this.graphic.scaleX = this.flip ? -1.0 : 1.0;
-	}
-
-	render(ctx, camera) {
-		// this.graphic.x = -(this.y - minY) + (this.flip ? -10 : 10);
-		this.graphic.x = this.flip ? -10 : 10;
-		super.render(ctx, camera);
+		super.update(input);
 	}
 }
 
@@ -873,7 +844,7 @@ class CameraManager extends Entity {
 	constructor(follow) {
 		super(0, 0);
 		this.follow = follow;
-		this.depth = -Infinity;
+		this.depth = DEPTH.CAMERA;
 		this.updateSettings();
 	}
 
@@ -887,11 +858,9 @@ class CameraManager extends Entity {
 	update(input) {
 		this.updateSettings();
 
-		if (settings.showCamera && input.keyPressed('q')) {
-			this.dir = -1;
-		}
-		if (settings.showCamera && input.keyPressed('e')) {
-			this.dir = 1;
+		if (settings.showCamera) {
+			if (input.keyPressed?.('q')) this.dir = -1;
+			if (input.keyPressed?.('e')) this.dir = 1;
 		}
 
 		const { x, innerDist, outerDist, dir } = this;
@@ -903,7 +872,7 @@ class CameraManager extends Entity {
 			--toggleX;
 		}
 
-		const realFollowX = this.follow.x - 50.0;
+		const realFollowX = this.follow.x;
 		if (Math.sign(realFollowX - followX) === dir) {
 			const targetX = realFollowX + innerDist * dir;
 			const dist = targetX - x;
@@ -956,11 +925,11 @@ let buildingIndices;
 {
 	const random = new Random(64673);
 	buildingIndices = Array.from({ length: 100 }, (_, i) => {
-			return random.int(5);
-		});
+		return random.int(5);
+	});
 }
 
-class Buildings extends Entity {
+class Skyscrapers extends Entity {
 	constructor(xOffset) {
 		super(xOffset * buildingW, 0);
 
@@ -971,9 +940,8 @@ class Buildings extends Entity {
 			buildingW,
 			540,
 		);
-		this.depth = -1;
+		this.depth = DEPTH.SKYSCRAPERS;
 		this.graphic.centerOO();
-		this.y = 50.0;
 
 		this.graphic.scrollX = 0.25;
 
@@ -1009,6 +977,86 @@ class Buildings extends Entity {
 	}
 }
 
+class Buildings extends Entity {
+	constructor() {
+		super(65, 60);
+
+		const asset = assetManager.sprites.get(ASSETS.BG_FG);
+
+		const tileW = 64;
+		const tileH = 64;
+
+		const totalWidth = [320.0, 320.0, 320.0, 320.0].reduce(
+			(a, v) => a + v,
+			0,
+		);
+		console.log(totalWidth);
+		const tileset = new Tileset(
+			asset,
+			totalWidth * 50,
+			asset.height,
+			tileW,
+			tileH,
+		);
+		this.graphic = tileset;
+		this.graphic.entity = this;
+
+		this.depth = DEPTH.BUILDINGS;
+
+		const building1 = [0, 0, 4, 2];
+		const building2 = [4, 0, 5, 2];
+		const empty = [0, 6, 1, 1];
+
+		const billboards = Array.from({ length: 8 }, (_, i) => {
+			return [i % 5, 2 + Math.floor(i / 5), 1, 1];
+		});
+
+		const renderBuilding = (_x, _y, building) => {
+			const [startX, startY, w, h] = building;
+			console.log({ startX, startY, w, h });
+
+			for (let y = 0; y < h; ++y) {
+				for (let x = 0; x < w; ++x) {
+					tileset.setTile(_x + x, _y + y, startX + x, startY + y);
+				}
+			}
+		};
+
+		let xPos = 0;
+
+		const baseArr = [
+			empty,
+			empty,
+			empty,
+			empty,
+			empty,
+			empty,
+			empty,
+			empty,
+			building1,
+			building1,
+			building1,
+			building1,
+			building2,
+			building2,
+			building2,
+			building2,
+			...billboards,
+		];
+
+		const random = new Random(23947);
+		for (let i = 0; i < 4; ++i) {
+			const arr = [...baseArr];
+			while (arr.length) {
+				const [structure] = arr.splice(random.float(arr.length), 1);
+				const [x, y, w, h] = structure;
+				renderBuilding(xPos, 2 - h, structure);
+				xPos += w;
+			}
+		}
+	}
+}
+
 const pauseKeys = ['p', 'P', 'Escape'];
 
 class PauseScreen extends Scene {
@@ -1037,22 +1085,22 @@ class PauseScreen extends Scene {
 		this.addRenderable(textEntity);
 
 		const options = new MenuOptions(width >> 1, height >> 1, [
-				{
-					str: 'Resume',
-					callback: () => {
-						this.engine.popScenes();
-					},
+			{
+				str: 'Resume',
+				callback: () => {
+					this.engine.popScenes();
 				},
-				{
-					str: 'Quit',
-					callback: () => {
-						// remove pause
-						this.engine.popScenes();
-						// remove level
-						this.engine.popScenes();
-					},
+			},
+			{
+				str: 'Quit',
+				callback: () => {
+					// remove pause
+					this.engine.popScenes();
+					// remove level
+					this.engine.popScenes();
 				},
-			]);
+			},
+		]);
 		options.y += yPad;
 		this.addEntity(options);
 		this.addRenderable(options);
@@ -1067,28 +1115,21 @@ class Level extends Scene {
 		const canvasSize = new Vec2(engine.canvas.width, engine.canvas.height);
 		const canvasCenter = canvasSize.scale(0.5);
 
-		const p = new Player(canvasCenter.x, 400.0, assetManager);
+		const p = new Player(canvasCenter.x, centerY, assetManager);
 		this.player = p;
 
 		const cameraManager = new CameraManager(this.player);
 
-		const bg2 = new Background(ASSETS.BG2_PNG, canvasSize.y, assetManager);
-		const bg = new Background(ASSETS.BG_PNG, canvasSize.y, assetManager);
 		const tiles = new Tiles(assetManager);
 
-		const entities = [
-			ASSETS.BG_SUNSET,
-			ASSETS.BG_CLOUD,
-			ASSETS.BG_PYRAMIDS,
-			// ASSETS.BG_SKYSCRAPERS,
-			// ASSETS.BG_FG,
-		]
+		const entities = [ASSETS.BG_SUNSET, ASSETS.BG_CLOUD, ASSETS.BG_PYRAMIDS]
 			.map((asset) => assetManager.sprites.get(asset))
 			.map((sprite) => {
 				const entity = new Entity(
 					engine.canvas.width >> 1,
 					(engine.canvas.height >> 1) - 80,
 				);
+				entity.depth = DEPTH.BACKGROUND;
 				entity.graphic = new Sprite(sprite);
 				entity.graphic.scale = 0.5;
 				entity.graphic.centerOO();
@@ -1100,15 +1141,19 @@ class Level extends Scene {
 		entities[2].graphic.scrollX = 0.025;
 
 		for (let i = 0; i < 5; ++i) {
-			const buildings = new Buildings(i);
-			this.addEntity(buildings);
-			this.addRenderable(buildings);
+			const skyscrapers = new Skyscrapers(i);
+			this.addEntity(skyscrapers);
+			this.addRenderable(skyscrapers);
 		}
 
+		const buildings = new Buildings();
+		this.addEntity(buildings);
+		this.addRenderable(buildings);
+
 		[...entities, tiles, p, cameraManager].forEach((e) => {
-				this.addEntity(e);
-				this.addRenderable(e);
-			});
+			this.addEntity(e);
+			this.addRenderable(e);
+		});
 
 		// a lil' cheat for making the camera immediately snap
 		for (let i = 0; i < 100; ++i) cameraManager.update({});
@@ -1122,6 +1167,14 @@ class Level extends Scene {
 		if (!over) {
 			this.pauseGame();
 		}
+	}
+
+	pauseGame() {
+		this.engine.pushScene(new PauseScreen(this.engine));
+	}
+
+	blur() {
+		this.pauseGame();
 	}
 
 	pauseGame() {
@@ -1143,7 +1196,7 @@ class Level extends Scene {
 						'You fugging won!',
 						this.engine.canvas.width,
 						this.engine.canvas.height,
-						true
+						true,
 					);
 					this.addEntity(e);
 					this.addRenderable(e);
@@ -1158,8 +1211,8 @@ class Level extends Scene {
 				for (var i = 0; i < n; i++) {
 					const e = new Grimey(
 						this.room_start +
-						game.canvas.width * 0.5 +
-						random.int(4) * 35.0,
+							game.canvas.width * 0.5 +
+							random.int(4) * 35.0,
 						game.canvas.height - (i * 30.0 + 20.0),
 						assetManager,
 					);
@@ -1178,18 +1231,18 @@ class Level extends Scene {
 
 		if (settings.showHitboxes) {
 			this.entities.inScene.forEach((e) => {
-					if (!e.collider) return;
+				if (!e.collider) return;
 
-					const r = 3;
-					Draw.circle(
-						ctx,
-						{ type: 'fill', color: 'lime' },
-						e.x - r - camera.x,
-						e.y - r - camera.y,
-						r,
-					);
-					switch (e.collider.type) {
-						case 'rect':
+				const r = 3;
+				Draw.circle(
+					ctx,
+					{ type: 'fill', color: 'lime' },
+					e.x - r - camera.x,
+					e.y - r - camera.y,
+					r,
+				);
+				switch (e.collider.type) {
+					case 'rect':
 						Draw.rect(
 							ctx,
 							{ type: 'stroke', color: 'red' },
@@ -1199,10 +1252,10 @@ class Level extends Scene {
 							e.collider.h,
 						);
 						break;
-						default:
+					default:
 						console.warn('not supported');
-					}
-				});
+				}
+			});
 		}
 	}
 }
@@ -1210,51 +1263,52 @@ class Level extends Scene {
 let game;
 const assetManager = new AssetManager('./img/');
 Object.values(ASSETS).forEach((asset) => {
-		switch (true) {
-			case asset.endsWith('.png'):
+	switch (true) {
+		case asset.endsWith('.png'):
 			assetManager.addImage(asset);
 			break;
-			case asset.endsWith('.wav'):
+		case asset.endsWith('.wav'):
 			assetManager.addAudio(asset);
 			break;
-		}
-	});
+	}
+});
+
 assetManager.onLoad(() => {
-		if (game) return;
+	if (game) return;
 
-		game = new Game('ggj-2025-game', {
-				fps: 60,
-				gameLoopSettings: {
-					updateMode: 'focus', // or set it to 'focus'
-					renderMode: 'onUpdate',
-				},
-			});
-		game.assetManager = assetManager;
-		game.backgroundColor = '#101010';
-		game.listeners.blur.add(() => {
-				const scene = game.currentScenes?.[0];
-				if (scene && scene.blur) {
-					scene.blur();
-					window.requestAnimationFrame(() => {
-							game.render();
-						});
-				}
-			});
-
-		const menu = new Menu(game, Level, settings.autoLevel);
-		game.pushScene(menu);
-
-		if (settings.autoLevel) {
-			menu.goToLevel();
+	game = new Game('ggj-2025-game', {
+		fps: 60,
+		gameLoopSettings: {
+			updateMode: 'focus', // or set it to 'focus'
+			renderMode: 'onUpdate',
+		},
+	});
+	game.assetManager = assetManager;
+	game.backgroundColor = '#101010';
+	game.listeners.blur.add(() => {
+		const scene = game.currentScenes?.[0];
+		if (scene && scene.blur) {
+			scene.blur();
 			window.requestAnimationFrame(() => {
-					game.render();
-				});
-		}
-
-		game.render();
-
-		if (window.debugEnabled) {
-			initDebug(game, settings, defaultSettings);
+				game.render();
+			});
 		}
 	});
+
+	const menu = new Menu(game, Level, settings.autoLevel);
+	game.pushScene(menu);
+
+	if (settings.autoLevel) {
+		menu.goToLevel();
+		window.requestAnimationFrame(() => {
+			game.render();
+		});
+	}
+
+	game.render();
+
+	if (window.debugEnabled) {
+		initDebug(game, settings, defaultSettings);
+	}
+});
 assetManager.loadAssets();
