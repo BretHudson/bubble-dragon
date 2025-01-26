@@ -26,10 +26,10 @@ const settings = Object.assign(
 
 // delete old keys
 Object.keys(settings).forEach((key) => {
-		if (!(key in defaultSettings)) {
-			delete settings[key];
-		}
-	});
+	if (!(key in defaultSettings)) {
+		delete settings[key];
+	}
+});
 
 const ASSETS = {
 	MOLE_SKETCH_PNG: 'mole-sketch.png',
@@ -43,7 +43,7 @@ const ASSETS = {
 class Tile extends Entity {
 	constructor(x, y, assetManager) {
 		super(x, y);
-		const asset = assetManager.sprites.get("floors.png");
+		const asset = assetManager.sprites.get('floors.png');
 
 		this.graphic = new Sprite(asset);
 	}
@@ -70,7 +70,7 @@ class Background extends Entity {
 			this.depth = 2;
 		}
 
-		this.y = (canvas_height - 150) - (asset.height * 0.5);
+		this.y = canvas_height - 150 - asset.height * 0.5;
 	}
 
 	update(input) {
@@ -91,7 +91,7 @@ class Character extends Entity {
 			return;
 		}
 
-		console.log("Ouch!");
+		console.log('Ouch!');
 		if (this.health <= pts) {
 			this.health = 0;
 		} else {
@@ -142,6 +142,11 @@ class Hitbox extends Entity {
 	}
 }
 
+const keysU = ['w', 'W', 'ArrowUp'];
+const keysD = ['s', 'S', 'ArrowDown'];
+const keysL = ['a', 'A', 'ArrowLeft'];
+const keysR = ['d', 'D', 'ArrowRight'];
+
 class Mole extends Character {
 	flip = false;
 	hitbox = null;
@@ -151,7 +156,7 @@ class Mole extends Character {
 
 		const scale = 1.0;
 		const asset = assetManager.sprites.get('mr_clean.png');
-		const w = (asset.width * 0.25) * scale;
+		const w = asset.width * 0.25 * scale;
 		const h = asset.height * scale;
 
 		this.collider = {
@@ -162,11 +167,15 @@ class Mole extends Character {
 			h,
 		};
 
-		this.graphic = new AnimatedSprite(
-			asset, 44, 79,
-		);
-		this.graphic.originY = -h;
+		this.graphic = new AnimatedSprite(asset, 44, 79);
+		this.graphic.centerOO();
+		this.graphic.originY = 0;
+		this.graphic.offsetY = 0;
+		this.graphic.y = -h;
 		this.graphic.scale = scale;
+
+		this.collider.x = this.graphic.x + this.graphic.originX;
+		this.collider.y = this.graphic.y + this.graphic.originY;
 
 		this.graphic.add('idle', [0], 60);
 		this.graphic.add('walk', [0, 1, 2, 3], 16);
@@ -176,52 +185,29 @@ class Mole extends Character {
 		super.update(input);
 
 		const speed = 2.0;
-		var nx = this.x;
-		var ny = this.y;
 
-		var walking = false;
-		if (input.keyCheck('w')) {
-			ny -= speed;
+		let moveVec = new Vec2(0, 0);
+
+		let walking = false;
+		moveVec.x = +input.keyCheck(keysR) - +input.keyCheck(keysL);
+		moveVec.y = +input.keyCheck(keysD) - +input.keyCheck(keysU);
+
+		if (moveVec.magnitude > 0) {
+			moveVec = moveVec.scale(speed);
 			walking = true;
-			this.flip = true;
-
-			if (ny < 150.0) {
-				ny = 150.0;
-			}
-		} else if (input.keyCheck('s')) {
-			ny += speed;
-			walking = true;
-			this.flip = false;
-
-			if (ny > 400.0) {
-				ny = 400.0;
-			}
+			this.flip = moveVec.x ? moveVec.x < 0 : moveVec.y < 0;
 		}
 
-		if (input.keyCheck('a')) {
-			nx -= speed;
-			walking = true;
-			this.flip = true;
-		} else if (input.keyCheck('d')) {
-			nx += speed;
-			walking = true;
-			this.flip = false;
-		}
+		this.x += speed * moveVec.x;
+		this.y += speed * moveVec.y;
 
-		this.x = nx;
-		this.y = ny;
-
-		/* if (!this.collide(nx, this.y)) {
-			this.x = nx;
-		}
-
-		if (!this.collide(this.x, ny)) {
-			this.y = ny;
-		} */
+		const minY = 150;
+		const maxY = 400;
+		this.y = Math.clamp(this.y, minY, maxY);
 
 		if (input.keyPressed(' ')) {
-			var xx = this.x + this.y*0.25;
-			xx += this.flip ? -20.0 : 22.0+20.0;
+			var xx = this.x + this.y * 0.25;
+			xx += this.flip ? -20.0 : 22.0 + 20.0;
 
 			var e = new Hitbox(xx, this.y);
 			this.scene.addEntity(e);
@@ -231,32 +217,44 @@ class Mole extends Character {
 
 		this.graphic.play(walking ? 'walk' : 'idle');
 		this.depth = -this.y;
+
+		this.graphic.x = -(this.y - minY) * 0.25;
 	}
 
 	render(ctx, camera) {
 		this.graphic.scaleX = this.flip ? -1.0 : 1.0;
 
-		var off_x = this.flip ? 44 : 0;
-		this.collider.x = (this.y * 0.25);
-		this.graphic.x  = (this.y * 0.25) + off_x;
-
 		super.render(ctx, camera);
 
-        const rectOptions = {
-            type: 'fill',
-            angle: 0.0,
-            scaleX: 1.0,
-            scaleY: 1.0,
-            originX: 0.0,
-            originY: 0.0,
-            offsetX: 0.0,
-            offsetY: 0.0,
-        };
+		const rectOptions = {
+			type: 'fill',
+			angle: 0.0,
+			scaleX: 1.0,
+			scaleY: 1.0,
+			originX: 0.0,
+			originY: 0.0,
+			offsetX: 0.0,
+			offsetY: 0.0,
+		};
 
 		rectOptions.color = 'red';
-		Draw.rect(ctx, rectOptions, 20.0, 20.0, (this.health / 10) * 200.0, 32.0);
+		Draw.rect(
+			ctx,
+			rectOptions,
+			20.0,
+			20.0,
+			(this.health / 10) * 200.0,
+			32.0,
+		);
 		rectOptions.color = 'black';
-		Draw.rect(ctx, rectOptions, 20.0 + ((this.health / 10) * 200.0), 20.0, (1.0 - (this.health / 10)) * 200.0, 32.0);
+		Draw.rect(
+			ctx,
+			rectOptions,
+			20.0 + (this.health / 10) * 200.0,
+			20.0,
+			(1.0 - this.health / 10) * 200.0,
+			32.0,
+		);
 
 		// Draw.rect(ctx, rectOptions, (this.x + this.collider.x) - camera.x, (this.y + this.collider.y) - camera.y, this.collider.w, this.collider.h);
 	}
@@ -266,9 +264,9 @@ class Grimey extends Character {
 	collider = {
 		type: 'rect',
 		x: -532 * 0.125,
-		y:  546 * 0.0625,
-		w:  532 * 0.25,
-		h:  546 * 0.0625,
+		y: 546 * 0.0625,
+		w: 532 * 0.25,
+		h: 546 * 0.0625,
 	};
 
 	constructor(x, y, assetManager) {
@@ -297,7 +295,7 @@ class Grimey extends Character {
 		super.update(input);
 		this.depth = -this.y;
 
-		const px = this.scene.player.x - this.scene.player.y*0.25;
+		const px = this.scene.player.x - this.scene.player.y * 0.25;
 		const py = this.scene.player.y;
 		const speed = 0.5;
 
@@ -325,7 +323,7 @@ class Grimey extends Character {
 	}
 
 	render(ctx, camera) {
-		this.collider.x = (this.y * 0.25) + (-532 * 0.125);
+		this.collider.x = this.y * 0.25 + -532 * 0.125;
 		this.graphic.x = this.y * 0.25;
 
 		super.render(ctx, camera);
@@ -371,7 +369,7 @@ class CameraManager extends Entity {
 			--toggleX;
 		}
 
-		const realFollowX = this.follow.x;// + this.follow.graphic.x;
+		const realFollowX = this.follow.x; // + this.follow.graphic.x;
 		if (Math.sign(realFollowX - followX) === dir) {
 			const targetX = realFollowX + innerDist * dir;
 			const dist = targetX - x;
@@ -431,9 +429,9 @@ class Level extends Scene {
 		const bg2 = new Background(ASSETS.BG2_PNG, canvasSize.y, assetManager);
 		const bg = new Background(ASSETS.BG_PNG, canvasSize.y, assetManager);
 		[bg, bg2, mole, cameraManager].forEach((e) => {
-				this.addEntity(e);
-				this.addRenderable(e);
-			});
+			this.addEntity(e);
+			this.addRenderable(e);
+		});
 
 		const random = new Random(settings.seed);
 		for (var i = 0; i < 5; i++) {
@@ -455,9 +453,19 @@ class Level extends Scene {
 
 		if (settings.showHitboxes) {
 			this.entities.inScene.forEach((e) => {
-					if (!e.collider) return;
-					switch (e.collider.type) {
-						case 'rect':
+				if (!e.collider) return;
+
+				const r = 3;
+				Draw.circle(
+					ctx,
+					{ type: 'fill', color: 'lime' },
+					e.x - r - camera.x,
+					e.y - r - camera.y,
+					r,
+				);
+
+				switch (e.collider.type) {
+					case 'rect':
 						Draw.rect(
 							ctx,
 							{ type: 'stroke', color: 'red' },
@@ -467,10 +475,10 @@ class Level extends Scene {
 							e.collider.h,
 						);
 						break;
-						default:
+					default:
 						console.warn('not supported');
-					}
-				});
+				}
+			});
 		}
 	}
 }
@@ -478,32 +486,32 @@ class Level extends Scene {
 let game;
 const assetManager = new AssetManager('./img/');
 Object.values(ASSETS).forEach((asset) => {
-		switch (true) {
-			case asset.endsWith('.png'):
+	switch (true) {
+		case asset.endsWith('.png'):
 			assetManager.addImage(asset);
 			break;
-			case asset.endsWith('.mp3'):
+		case asset.endsWith('.mp3'):
 			assetManager.addAudio(asset);
 			break;
-		}
-	});
+	}
+});
 assetManager.onLoad(() => {
-		if (game) return;
+	if (game) return;
 
-		game = new Game('ggj-2025-game', {
-				fps: 60,
-				gameLoopSettings: {
-					updateMode: 'focus', // or set it to 'focus'
-					renderMode: 'onUpdate',
-				},
-			});
-		game.assetManager = assetManager;
-		game.backgroundColor = '#6c6d71';
-
-		const scene = new Level(game);
-		game.pushScene(scene);
-		game.render();
-
-		initDebug(game, settings, defaultSettings);
+	game = new Game('ggj-2025-game', {
+		fps: 60,
+		gameLoopSettings: {
+			updateMode: 'focus', // or set it to 'focus'
+			renderMode: 'onUpdate',
+		},
 	});
+	game.assetManager = assetManager;
+	game.backgroundColor = '#6c6d71';
+
+	const scene = new Level(game);
+	game.pushScene(scene);
+	game.render();
+
+	initDebug(game, settings, defaultSettings);
+});
 assetManager.loadAssets();
