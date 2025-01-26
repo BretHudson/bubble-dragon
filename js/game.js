@@ -67,9 +67,22 @@ const ASSETS = {
 	THUNK: 'thunk.wav',
 	WHACK: 'whack.wav',
 	CRUNCH: 'crunch.wav',
+
+	ACH: 'ach.wav',
+	OW: 'ow.wav',
+	UGH: 'ugh.wav',
+	WUGH: 'wugh.wav',
 };
 
-const punch_sfx = [ASSETS.THUD, ASSETS.THUNK, ASSETS.WHACK];
+const punch_sfx = [
+	ASSETS.THUD,
+	ASSETS.THUNK,
+	ASSETS.WHACK,
+	ASSETS.ACH,
+	ASSETS.OW,
+	ASSETS.UGH,
+	ASSETS.WUGH,
+];
 
 class Tiles extends Entity {
 	constructor(assetManager) {
@@ -416,7 +429,7 @@ class Grimey extends Character {
 		this.graphic.add('idle', [0], 60);
 		this.graphic.add('walk', [0, 1, 2, 3], 20);
 		this.graphic.add('punch', [4, 5, 6], 8, false);
-		this.graphic.add('death', [16, 17, 18], 60, false);
+		this.graphic.add('death', [12, 13, 14], 60, false);
 	}
 
 	onDeath() {
