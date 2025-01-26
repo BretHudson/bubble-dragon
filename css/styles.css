@@ -19,6 +19,7 @@ body {
 	&:focus-within canvas {
 		border-color: #bbf;
 	}
+	background: black;
 }
 
 .canvas-lord:has(.inspector) {
@@ -49,7 +50,102 @@ body {
 	}
 }
 
+#cabinet {
+	--inset: 40px;
+	background: #67aac9;
+	width: 900px;
+	header {
+		background: #2c7596;
+		padding: 1.5rem;
+		div {
+			background: #2c7596;
+			/* border: 4px solid white; */
+		}
+		/* background: rgba(0, 0, 0, 0.2); */
+		img {
+			display: block;
+			margin: 0 auto;
+		}
+	}
+	main {
+		position: relative;
+		background: rgba(0, 0, 0, 0.2);
+		padding-block: 2rem;
+	}
+	footer {
+		height: 200px;
+		background: linear-gradient(to bottom, transparent, Canvas);
+	}
+}
+
+#top,
+#bottom {
+	position: relative;
+	width: 100%;
+	height: var(--inset);
+}
+
+#top::before,
+#top::after,
+#bottom::before,
+#bottom::after {
+	content: ' ';
+	display: block;
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	width: var(--inset);
+	aspect-ratio: 1;
+	background: Canvas;
+}
+
+#top {
+	background: rgba(0, 0, 0, 0.5);
+}
+
+#top::before {
+	left: 0;
+	clip-path: polygon(0 0, 100% 100%, 0 100%);
+}
+#top::after {
+	right: 0;
+	clip-path: polygon(100% 0, 100% 100%, 0 100%);
+}
+
+#bottom {
+	background: rgba(255, 255, 255, 0.2);
+}
+
+#bottom::before {
+	left: 0;
+	clip-path: polygon(0 100%, 100% 0, 0 0);
+}
+#bottom::after {
+	right: 0;
+	clip-path: polygon(100% 100%, 100% 0, 0 0);
+}
+
+main::before,
+main::after {
+	content: ' ';
+	display: block;
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	width: var(--inset);
+	background: Canvas;
+}
+
+main::before {
+	left: 0;
+}
+
+main::after {
+	right: 0;
+}
+
 canvas {
+	background: black;
 	box-sizing: content-box;
 	display: block;
 	width: 100%;

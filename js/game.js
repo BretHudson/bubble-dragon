@@ -13,20 +13,25 @@ import {
 	GraphicList,
 } from './canvas-lord/util/graphic.js';
 import { initDebug } from './debug.js';
+import { Menu } from './menu.js';
 
 const defaultSettings = {
+	autoLevel: false,
 	showCamera: false,
 	showHitboxes: false,
 	seed: undefined,
-	cameraInner: 75,
-	cameraOuter: 125,
-	cameraSpeed: 20,
+	cameraInner: 40,
+	cameraOuter: 132,
+	cameraSpeed: 10,
 };
 const settings = Object.assign(
 	{},
 	defaultSettings,
 	JSON.parse(localStorage.getItem('settings')) ?? {},
 );
+
+const minY = 80;
+const maxY = 180;
 
 // delete old keys
 Object.keys(settings).forEach((key) => {
@@ -36,12 +41,14 @@ Object.keys(settings).forEach((key) => {
 });
 
 const ASSETS = {
-	MOLE_SKETCH_PNG: 'mole-sketch.png',
-	MOLE_SKETCH_NO_BG_PNG: 'mole-sketch-no-bg.png',
 	MRCLEAN_PNG: 'mr_clean.png',
+	BADGUY_PNG: 'badguy.png',
 	BG_PNG: 'bg.png',
 	BG2_PNG: 'bg2.png',
 	FLOORS_PNG: 'floors.png',
+
+	// menu
+	LOGO: 'logo.png',
 };
 
 class Tiles extends Entity {
@@ -51,7 +58,7 @@ class Tiles extends Entity {
 		const asset = assetManager.sprites.get(ASSETS.FLOORS_PNG);
 		this.graphic = new GraphicList();
 
-		for (var i = 0; i < 4; i++) {
+		for (var i = -5; i <= 5; i++) {
 			for (var j = 1; j <= 2; j++) {
 				var xx = i * 93 + j * 49 * 1.0;
 				var yy = 180 - j * 49;
@@ -59,6 +66,11 @@ class Tiles extends Entity {
 				this.graphic.add(new Sprite(asset, xx, yy));
 			}
 		}
+	}
+
+	update(input) {
+		const limit = 93 * 3;
+		this.x = Math.floor(this.scene.camera.x / limit) * limit;
 	}
 }
 
@@ -92,6 +104,9 @@ class Character extends Entity {
 	invFrames = 0;
 	health = 8;
 
+	anim_state = 0;
+	hitbox = null;
+
 	hurt(pts) {
 		if (this.invFrames > 0) {
 			return;
@@ -100,6 +115,10 @@ class Character extends Entity {
 		console.log('Ouch!');
 		if (this.health <= pts) {
 			this.health = 0;
+
+			this.scene.removeRenderable(this);
+			this.scene.removeEntity(this);
+			this.scene = null;
 		} else {
 			this.health -= pts;
 		}
@@ -124,9 +143,11 @@ class Character extends Entity {
 
 class Hitbox extends Entity {
 	time = 0;
+	owner = null;
 
-	constructor(x, y) {
+	constructor(o, x, y) {
 		super(x, y);
+		this.owner = o;
 		this.collider = {
 			type: 'rect',
 			tag: 'HITBOX',
@@ -140,6 +161,13 @@ class Hitbox extends Entity {
 	}
 
 	update(input) {
+		if (this.time <= 10) {
+			const e = this.collideEntity(this.x, this.y);
+			if (e != null && e != this.owner) {
+				e.hurt(2);
+			}
+		}
+
 		this.time -= 1;
 		if (this.time == 0) {
 			this.scene.removeRenderable(this);
@@ -154,47 +182,44 @@ const keysD = ['s', 'S', 'ArrowDown'];
 const keysL = ['a', 'A', 'ArrowLeft'];
 const keysR = ['d', 'D', 'ArrowRight'];
 
-class Mole extends Character {
+const states2anim = ['idle', 'walk', 'punch'];
+
+class Player extends Character {
 	flip = false;
-	hitbox = null;
 
 	constructor(x, y, assetManager) {
 		super(x, y);
 
 		const scale = 1.0;
 		const asset = assetManager.sprites.get('mr_clean.png');
-		const w = asset.width * 0.25 * scale;
-		const h = asset.height * scale;
+		const w = 80.0 * scale;
+		const h = 80.0 * scale;
 
 		this.collider = {
 			type: 'rect',
-			x: 0,
-			y: h - 20,
-			w: w,
+			x: -10,
+			y: -20,
+			w: 20,
 			h: 20,
 		};
 
-		this.graphic = new AnimatedSprite(asset, 44, 79);
+		this.graphic = new AnimatedSprite(asset, 80, 80);
 		this.graphic.centerOO();
 		this.graphic.originY = 0;
 		this.graphic.offsetY = 0;
 		this.graphic.y = -h;
 		this.graphic.scale = scale;
 
-		this.collider.x = this.graphic.x + this.graphic.originX;
-		this.collider.y = this.graphic.y + this.graphic.originY;
-
 		this.graphic.add('idle', [0], 60);
-		this.graphic.add('walk', [0, 1, 2, 3], 8);
+		this.graphic.add('walk', [0, 1, 2, 3], 20);
+		this.graphic.add('punch', [4, 5, 6], 8);
 	}
 
 	update(input) {
 		super.update(input);
 
 		let walking = false;
-		const minY = 150;
-		const maxY = 400;
-
+		var next_state = 0;
 		if (this.hitbox !== null) {
 			// hitbox died, we can hit again
 			if (!this.hitbox.scene) {
@@ -209,32 +234,37 @@ class Mole extends Character {
 
 			if (moveVec.magnitude > 0) {
 				moveVec = moveVec.scale(speed);
-				walking = true;
+				next_state = 1;
 				this.flip = moveVec.x ? moveVec.x < 0 : moveVec.y < 0;
 			}
 
 			this.x += speed * moveVec.x;
 			this.y += speed * moveVec.y;
 			this.y = Math.clamp(this.y, minY, maxY);
+
+			if (input.keyPressed(' ')) {
+				var xx = this.x + (this.flip ? -30.0 : 10.0);
+
+				var e = new Hitbox(this, xx, this.y - 20.0);
+				this.scene.addEntity(e);
+				this.scene.addRenderable(e);
+				this.hitbox = e;
+
+				this.graphic.play('punch');
+				next_state = 2;
+			}
+
+			if (this.anim_state != next_state) {
+				this.graphic.play(states2anim[next_state]);
+				this.anim_state = next_state;
+			}
 		}
 
-		if (this.hitbox == null && input.keyPressed(' ')) {
-			var xx = this.x + this.y * 0.25;
-			xx += this.flip ? -20.0 : 22.0 + 20.0;
-
-			var e = new Hitbox(xx, this.y);
-			this.scene.addEntity(e);
-			this.scene.addRenderable(e);
-			this.hitbox = e;
-		}
-
-		this.graphic.play(walking ? 'walk' : 'idle');
 		this.depth = -this.y;
-
-		this.graphic.x = -(this.y - minY) * 0.25;
 	}
 
 	render(ctx, camera) {
+		// this.graphic.x = -(this.y - minY) * 1.0;
 		this.graphic.scaleX = this.flip ? -1.0 : 1.0;
 
 		const drawX = this.x + this.graphic.x - camera.x;
@@ -283,61 +313,73 @@ class Grimey extends Character {
 		super(x, y);
 
 		const scale = 1.0;
-		const asset = assetManager.sprites.get('mr_clean.png');
-		const w = asset.width * 0.25 * scale;
-		const h = asset.height * scale;
+		const asset = assetManager.sprites.get('badguy.png');
+		const w = 80.0 * scale;
+		const h = 80.0 * scale;
 
 		this.collider = {
 			type: 'rect',
-			x: 0,
-			y: h - 20,
-			w: w,
+			x: -10,
+			y: -20,
+			w: 20,
 			h: 20,
 		};
 
-		this.graphic = new AnimatedSprite(asset, 44, 79);
-		this.graphic.originY = -h;
+		this.graphic = new AnimatedSprite(asset, 80, 80);
+		this.graphic.centerOO();
+		this.graphic.originY = 0;
+		this.graphic.offsetY = 0;
+		this.graphic.y = -h;
 		this.graphic.scale = scale;
+
 		this.graphic.add('idle', [0], 60);
-		this.graphic.add('walk', [0, 1, 2, 3], 16);
-		this.graphic.play('walk');
+		this.graphic.add('walk', [0, 1, 2, 3], 20);
+		this.graphic.add('punch', [4, 5, 6], 8);
 	}
 
 	update(input) {
 		super.update(input);
 		this.depth = -this.y;
 
-		const px = this.scene.player.x - this.scene.player.y * 0.25;
-		const py = this.scene.player.y;
-		const speed = 0.5;
+		if (this.hitbox !== null) {
+			// hitbox died, we can hit again
+			if (!this.hitbox.scene) {
+				this.hitbox = null;
+			}
+		} else {
+			var xx = this.scene.player.x - this.x;
+			var yy = this.scene.player.y - this.y;
+			var dist = Math.sqrt(xx * xx + yy * yy);
 
-		var nx = this.x;
-		var ny = this.y;
-		if (nx > px) {
-			nx -= speed;
-		} else if (nx < px) {
-			nx += speed;
-		}
+			var next_state = 0;
+			if (dist > 25.0) {
+				const speed = 0.5;
+				var dx = Math.sign(this.scene.player.x - this.x) * speed;
+				var dy = Math.sign(this.scene.player.y - this.y) * speed;
+				this.x += this.collide(this.x + dx, this.y) ? 0.0 : dx;
+				this.y += this.collide(this.x, this.y + dy) ? 0.0 : dy;
+				this.flip = dx ? dx < 0 : dy < 0;
 
-		if (ny > py) {
-			ny -= speed;
-		} else if (ny < py) {
-			ny += speed;
-		}
+				next_state = 1;
+			} else {
+				var xx = this.x + (this.flip ? -30.0 : 10.0);
 
-		if (!this.collide(nx, this.y)) {
-			this.x = nx;
-		}
+				var e = new Hitbox(this, xx, this.y - 20.0);
+				this.scene.addEntity(e);
+				this.scene.addRenderable(e);
+				this.hitbox = e;
+				this.anim_state = 2;
+			}
 
-		if (!this.collide(this.x, ny)) {
-			this.y = ny;
+			if (this.anim_state != next_state) {
+				this.graphic.play(states2anim[next_state]);
+				this.anim_state = next_state;
+			}
 		}
 	}
 
 	render(ctx, camera) {
-		this.collider.x = this.y * 0.25;
-		this.graphic.x = this.y * 0.25;
-
+		this.graphic.scaleX = this.flip ? -1.0 : 1.0;
 		super.render(ctx, camera);
 	}
 }
@@ -381,7 +423,7 @@ class CameraManager extends Entity {
 			--toggleX;
 		}
 
-		const realFollowX = this.follow.x; // + this.follow.graphic.x;
+		const realFollowX = this.follow.x - 50.0;
 		if (Math.sign(realFollowX - followX) === dir) {
 			const targetX = realFollowX + innerDist * dir;
 			const dist = targetX - x;
@@ -418,9 +460,9 @@ class CameraManager extends Entity {
 			Draw.line(ctx, { color: 'white' }, x2, y1, x2, y2);
 		};
 
-		drawPair(this.innerDist, 60);
+		drawPair(this.innerDist, 30);
 		ctx.setLineDash([7, 7]);
-		drawPair(this.outerDist, 90);
+		drawPair(this.outerDist, 45);
 
 		ctx.restore();
 	}
@@ -433,29 +475,36 @@ class Level extends Scene {
 		const canvasSize = new Vec2(engine.canvas.width, engine.canvas.height);
 		const canvasCenter = canvasSize.scale(0.5);
 
-		const mole = new Mole(canvasCenter.x, canvasCenter.y, assetManager);
-		this.player = mole;
+		const p = new Player(canvasCenter.x, 130.0, assetManager);
+		this.player = p;
 
 		const cameraManager = new CameraManager(this.player);
 
 		const bg2 = new Background(ASSETS.BG2_PNG, canvasSize.y, assetManager);
 		const bg = new Background(ASSETS.BG_PNG, canvasSize.y, assetManager);
 		const tiles = new Tiles(assetManager);
-		[bg, bg2, tiles, mole, cameraManager].forEach((e) => {
+		[bg, bg2, tiles, p, cameraManager].forEach((e) => {
 			this.addEntity(e);
 			this.addRenderable(e);
 		});
 
 		const random = new Random(settings.seed);
-		for (var i = 0; i < 5; i++) {
+		for (var i = 0; i < 3; i++) {
 			const e = new Grimey(
-				random.float(8000),
+				random.float(1000),
 				game.canvas.height - random.float(200),
 				assetManager,
 			);
 
 			this.addEntity(e);
 			this.addRenderable(e);
+		}
+	}
+
+	update(input) {
+		super.update(input);
+		if (input.keyPressed('Escape')) {
+			this.engine.popScenes();
 		}
 	}
 
@@ -520,8 +569,13 @@ assetManager.onLoad(() => {
 	game.assetManager = assetManager;
 	game.backgroundColor = '#101010';
 
-	const scene = new Level(game);
-	game.pushScene(scene);
+	const menu = new Menu(game, Level, settings.autoLevel);
+	game.pushScene(menu);
+
+	if (settings.autoLevel) {
+		menu.goToLevel();
+	}
+
 	game.render();
 
 	initDebug(game, settings, defaultSettings);
