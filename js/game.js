@@ -648,18 +648,6 @@ class Player extends Character {
 		// this.graphic.x = -(this.y - minY);
 		this.graphic.x = this.flip ? -10 : 10;
 
-		const drawX = this.x - camera.x;
-		const drawY = this.y - camera.y;
-
-		const r = 12;
-		const circleOptions = {
-			type: 'fill',
-			color: '#88888888',
-			radius: r,
-			scaleX: 2,
-		};
-		Draw.circle(ctx, circleOptions, drawX - r * 2, drawY - r, r);
-
 		super.render(ctx, camera);
 
 		const rectOptions = {
