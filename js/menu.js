@@ -92,7 +92,7 @@ export class MenuOptions extends Entity {
 		this.optionSelected = (this.optionSelected + optionCount) % optionCount;
 		for (let i = 0; i < optionCount; ++i) {
 			this.menuOptions[i].text.color =
-				i === this.optionSelected ? '#fff' : '#bbc';
+				i === this.optionSelected ? '#ddf' : '#99b';
 		}
 		const menuOption = this.menuOptions[this.optionSelected].text;
 		let x = menuOption.width / 2 + 10;
@@ -236,9 +236,11 @@ export class Menu extends Scene {
 		const canvasCenterY = engine.canvas.height >> 1;
 
 		const logoSprite = new Sprite(assetManager.sprites.get(ASSETS.LOGO));
-		const logoDim = [canvasCenterX, (logoSprite.height >> 1) + 20];
+		const logoDim = [canvasCenterX, (logoSprite.height >> 1) + 30];
 		const logo = this.addGraphic(logoSprite, ...logoDim);
 		logo.graphic.centerOO();
+		logo.graphic.color = '#91DAF7';
+		this.logo = logo;
 
 		const menuOptions = [
 			{
@@ -253,12 +255,29 @@ export class Menu extends Scene {
 
 		const options = new MenuOptions(
 			canvasCenterX,
-			canvasCenterY,
+			canvasCenterY - 30,
 			menuOptions,
 		);
 		this.options = options;
 		this.addEntity(options);
 		this.addRenderable(options);
+
+		[
+			['Move', 'Arrow keys'],
+			['Bubble', 'Z'],
+			['Punch', 'Spacebar'],
+		].forEach(([x, y], i) => {
+			const xx = i - 1;
+			const yy = xx ? 0 : 0;
+			const top = this.addText(x, canvasCenterX + xx * 110, 238 + yy, 24);
+			const bot = this.addText(
+				y.toUpperCase(),
+				canvasCenterX + xx * 110,
+				238 + yy + 20,
+				32,
+			);
+			top.graphic.color = '#889';
+		});
 
 		// TODO: Fonts by
 
@@ -289,8 +308,13 @@ export class Menu extends Scene {
 		this.creditsOpen = true;
 	}
 
+	angle = 0;
+
 	update(input) {
 		super.update(input);
+
+		this.logo.graphic.angle = Math.sin(++this.angle / 30) * 3;
+		this.logo.graphic.scale = 1.2 + Math.sin(++this.angle / 50) * 0.2;
 
 		if (this.creditsOpen) {
 			if (input.keyPressed('Escape', 'Enter', ' ', 'Return')) {
