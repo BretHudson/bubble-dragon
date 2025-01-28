@@ -1,7 +1,13 @@
-import { Scene, Entity } from './canvas-lord/canvas-lord.js';
+import { Scene, Entity, Sfx } from './canvas-lord/canvas-lord.js';
 import { Draw } from './canvas-lord/util/draw.js';
 import { Vec2 } from './canvas-lord/util/math.js';
-import { Sprite, Text, GraphicList } from './canvas-lord/util/graphic.js';
+import {
+	AnimatedSprite,
+	Sprite,
+	Text,
+	GraphicList,
+} from './canvas-lord/util/graphic.js';
+import { ASSETS } from './assets.js';
 
 const names = [
 	'Bret Hudson',
@@ -23,19 +29,132 @@ const roles = [
 
 const bullet = '/';
 
-const ASSETS = {
-	MOLE_SKETCH_PNG: 'mole-sketch.png',
-	MOLE_SKETCH_NO_BG_PNG: 'mole-sketch-no-bg.png',
-	MRCLEAN_PNG: 'mr_clean.png',
-	BG_PNG: 'bg.png',
-	BG2_PNG: 'bg2.png',
-	FLOORS_PNG: 'floors.png',
-
-	// menu
-	LOGO: 'logo.png',
-};
-
 const leading = 24;
+
+function* yieldFor(frames) {
+	while (frames--) yield;
+}
+
+const logoColor = '#91DAF7';
+const logoDimmed = '#cd9cca';
+
+const speed = 5;
+
+function* walkTo(character, x, speed = 1) {
+	console.log('starting walk to', x);
+	const dir = Math.sign(x - character.x);
+	character.flip = dir < 0;
+	character.graphic.play('walk');
+	while (Math.sign(x - character.x) === dir) {
+		character.x += dir * speed;
+		yield;
+	}
+	character.graphic.play('idle');
+}
+
+function* colorShift(target, from, to) {
+	target.graphic.color = 'white';
+	yield* yieldFor(4);
+	for (let i = 0; i < 2; ++i) {
+		target.graphic.color = from;
+		yield* yieldFor(4);
+		target.graphic.color = 'white';
+		yield* yieldFor(4);
+	}
+	target.graphic.color = to;
+}
+
+function* punch(character, punchee, from, to, sound) {
+	character.graphic.play('punch');
+	Sfx.play(sound);
+	yield* yieldFor(12);
+	yield* colorShift(punchee, from, to);
+}
+
+function* logoAnimation(mrClean, logo, enemy, bubble, assetManager) {
+	const enemyStartX = enemy.x;
+
+	const thud = assetManager.audio.get(ASSETS.THUNK);
+	const whack = assetManager.audio.get(ASSETS.WHACK);
+	const dieSfx = assetManager.audio.get(ASSETS.ACH);
+
+	if (true) {
+		if (true) {
+			// mr clean enter, stage left
+			yield* walkTo(mrClean, 150, speed);
+
+			// punch logo
+			yield* punch(mrClean, logo, logoDimmed, logoColor, thud);
+
+			// mr clean exit, stage left
+			yield* walkTo(mrClean, -20, speed);
+		}
+
+		// enemy enter, stage right
+		yield* walkTo(enemy, 240 + 150, speed);
+
+		if (true) {
+			// check around
+			yield* yieldFor(45);
+			enemy.flip = false;
+			yield* yieldFor(45);
+			enemy.flip = true;
+			yield* yieldFor(45);
+		}
+
+		yield* walkTo(enemy, 240 + 90, speed);
+
+		yield* punch(enemy, logo, logoColor, logoDimmed, whack);
+
+		mrClean.x = enemyStartX;
+		mrClean.graphic.play('walk');
+		mrClean.flip = true;
+		enemy.graphic.play('walk');
+		enemy.flip = false;
+
+		while (mrClean.x > 430 || enemy.x < 370) {
+			if (mrClean.x > 430) mrClean.x -= speed;
+			else mrClean.graphic.play('idle');
+			if (enemy.x < 370) enemy.x += speed;
+			else enemy.graphic.play('idle');
+			yield;
+		}
+		mrClean.graphic.play('idle');
+		enemy.graphic.play('idle');
+
+		yield* punch(mrClean, enemy, 'white', undefined, dieSfx);
+
+		enemy.graphic.play('death');
+
+		yield* yieldFor(24);
+
+		mrClean.graphic.play('idle');
+		yield* yieldFor(45);
+
+		yield* walkTo(mrClean, enemyStartX, speed);
+	}
+
+	while (bubble.x > 260) {
+		bubble.x -= 1;
+		bubble.graphic.y = Math.sin(bubble.x / 30) * 5;
+		yield;
+	}
+
+	Sfx.play(assetManager.audio.get(ASSETS.POP));
+
+	while (bubble.x > 240) {
+		bubble.x -= 1;
+		bubble.graphic.y = Math.sin(bubble.x / 30) * 5;
+		yield;
+	}
+
+	bubble.graphic.scale = 7;
+	bubble.graphic.alpha = 0.5;
+
+	yield* colorShift(logo, logoDimmed, logoColor);
+
+	logo.animated = true;
+}
 
 export class MenuOptions extends Entity {
 	optionSelected = 0;
@@ -199,6 +318,62 @@ class MenuCredit extends Entity {
 	}
 }
 
+class Bubble extends Entity {
+	constructor(x, y, asset) {
+		super(x, y);
+		this.graphic = new Sprite(asset);
+		this.graphic.centerOO();
+	}
+}
+
+class MenuCharacter extends Entity {
+	flip = false;
+
+	constructor(x, y, flipOffset, asset) {
+		super(x, y);
+
+		this.flipOffset = flipOffset;
+
+		const w = 80.0;
+		const h = 80.0;
+
+		this.collider = {
+			type: 'rect',
+			tag: 'CHAR',
+			x: -10,
+			y: -20,
+			w: 20,
+			h: 20,
+		};
+
+		this.depth = -1;
+
+		this.graphic = new AnimatedSprite(asset, 80, 80);
+		this.graphic.centerOO();
+		this.graphic.originY = 0;
+		this.graphic.offsetY = 0;
+		this.graphic.y = -h;
+
+		this.graphic.add('idle', [0], 60);
+		this.graphic.add('walk', [0, 1, 2, 3], 20);
+		this.graphic.add('punch', [4, 5, 5, 6], 8, false);
+		this.graphic.add('death', [12, 13, 14], 60, false);
+		this.graphic.add('stuck', [14], 60, false);
+
+		this.updateGraphic();
+	}
+
+	updateGraphic() {
+		this.graphic.x = this.flip ? -this.flipOffset : this.flipOffset;
+		this.graphic.scaleX = this.flip ? -1 : 1;
+	}
+
+	update(input) {
+		super.update(input);
+		this.updateGraphic();
+	}
+}
+
 export class Menu extends Scene {
 	inc = 0;
 
@@ -211,6 +386,8 @@ export class Menu extends Scene {
 
 	constructor(engine, Level) {
 		super(engine);
+
+		const { assetManager } = engine;
 
 		const creditX = [132, 200, 261, 335];
 		const creditY = engine.canvas.height - 20;
@@ -230,8 +407,6 @@ export class Menu extends Scene {
 
 		this.Level = Level;
 
-		const { assetManager } = engine;
-
 		const canvasCenterX = engine.canvas.width >> 1;
 		const canvasCenterY = engine.canvas.height >> 1;
 
@@ -239,7 +414,7 @@ export class Menu extends Scene {
 		const logoDim = [canvasCenterX, (logoSprite.height >> 1) + 30];
 		const logo = this.addGraphic(logoSprite, ...logoDim);
 		logo.graphic.centerOO();
-		logo.graphic.color = '#91DAF7';
+		logo.graphic.color = logoDimmed;
 		this.logo = logo;
 
 		const menuOptions = [
@@ -255,7 +430,7 @@ export class Menu extends Scene {
 
 		const options = new MenuOptions(
 			canvasCenterX,
-			canvasCenterY - 30,
+			canvasCenterY + 10,
 			menuOptions,
 		);
 		this.options = options;
@@ -269,11 +444,11 @@ export class Menu extends Scene {
 		].forEach(([x, y], i) => {
 			const xx = i - 1;
 			const yy = xx ? 0 : 0;
-			const top = this.addText(x, canvasCenterX + xx * 110, 238 + yy, 24);
+			const top = this.addText(x, canvasCenterX + xx * 110, 248 + yy, 24);
 			const bot = this.addText(
 				y.toUpperCase(),
 				canvasCenterX + xx * 110,
-				238 + yy + 20,
+				248 + yy + 20,
 				32,
 			);
 			top.graphic.color = '#889';
@@ -297,6 +472,32 @@ export class Menu extends Scene {
 			engine.canvas.height - 20,
 			32,
 		);
+
+		const mrClean = new MenuCharacter(
+			-50,
+			120,
+			10,
+			assetManager.sprites.get(ASSETS.MRCLEAN_PNG),
+		);
+		const grimey = new MenuCharacter(
+			engine.canvas.width + 50,
+			120,
+			10,
+			assetManager.sprites.get(ASSETS.BADGUY_PNG),
+		);
+		grimey.flip = true;
+		grimey.updateGraphic();
+		const bubble = new Bubble(
+			engine.canvas.width + 50,
+			logo.y,
+			assetManager.sprites.get(ASSETS.BUBBLES2_PNG),
+		);
+		this.bubble = bubble;
+		[mrClean, grimey, bubble].forEach((e) => {
+			this.addEntity(e);
+			this.addRenderable(e);
+		});
+		this.gen = logoAnimation(mrClean, logo, grimey, bubble, assetManager);
 	}
 
 	goToLevel() {
@@ -309,12 +510,28 @@ export class Menu extends Scene {
 	}
 
 	angle = 0;
+	animScale = 0;
 
 	update(input) {
 		super.update(input);
 
-		this.logo.graphic.angle = Math.sin(++this.angle / 30) * 3;
-		this.logo.graphic.scale = 1.2 + Math.sin(++this.angle / 50) * 0.2;
+		this.gen.next().value;
+
+		if (this.logo.animated) {
+			++this.animScale;
+			const t = Math.clamp(this.animScale / 60, 0, 1);
+			const scaleMul = Math.lerp(1, 1.2, t);
+			const angleAdd = Math.lerp(0, 2, t);
+
+			const angle = Math.sin(this.angle / 30) * 3;
+			const scale = scaleMul + Math.sin(this.angle / 50) * 0.2;
+			this.angle += angleAdd;
+
+			this.logo.graphic.angle = angle;
+			this.logo.graphic.scale = scale;
+			this.bubble.graphic.angle = angle;
+			this.bubble.graphic.scale = scale * 8;
+		}
 
 		if (this.creditsOpen) {
 			if (input.keyPressed('Escape', 'Enter', ' ', 'Return')) {
