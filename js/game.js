@@ -637,8 +637,6 @@ class Boss extends Character {
 		this.graphic.add('stunned', [19], 30, false);
 
 		this.graphic.play('idle');
-
-		console.log(this.graphic);
 	}
 
 	onDeath() {
@@ -1271,7 +1269,7 @@ assetManager.onLoad(() => {
 			updateMode: 'focus', // or set it to 'focus'
 			renderMode: 'onUpdate',
 		},
-		devMode: true,
+		devMode: window.debugEnabled,
 	});
 	game.assetManager = assetManager;
 	game.backgroundColor = '#101010';
