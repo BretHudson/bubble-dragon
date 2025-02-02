@@ -1,4 +1,5 @@
-import { addPos, scalePos, posEqual, Vec2 } from './math.js';
+/* Canvas Lord v0.5.0 */
+import { addPos, scalePos, posEqual, Vec2 } from '../math/index.js';
 const arrayRemove = (arr, value) => {
     const index = arr.indexOf(value);
     if (index > -1) {
