@@ -30,6 +30,8 @@ export class Text extends Graphic {
         textCtx.textBaseline = baseline;
         const metrics = textCtx.measureText(this.str);
         const height = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent;
+		this.width = metrics.width;
+		this.height = height;
         this.offsetX = -metrics.width / 2;
         this.offsetY = -height / 2;
         textCtx.restore();
