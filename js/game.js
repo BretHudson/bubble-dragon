@@ -44,10 +44,10 @@ const maxY = 380;
 const centerY = (maxY - minY) / 2 + minY;
 const random = new Random(settings.seed);
 
-var screen_min = 0.0;
-var screen_max = Infinity;
+let screen_min = 0.0;
+let screen_max = Infinity;
 
-var over = false;
+let over = false;
 
 // delete old keys
 Object.keys(settings).forEach((key) => {
@@ -101,13 +101,13 @@ class Tiles extends Entity {
 
 		const { width, height } = asset;
 
-		var s = Sprite.createRect(width * 10, 480, '#101010');
+		let s = Sprite.createRect(width * 10, 480, '#101010');
 		s.x = 0;
 		s.y = tileStartY;
 		this.graphic.add(s);
 
 		const xSize = 5;
-		for (var i = -xSize; i <= xSize; i++) {
+		for (let i = -xSize; i <= xSize; i++) {
 			this.graphic.add(new Sprite(asset, width * i, tileStartY));
 		}
 
@@ -144,6 +144,7 @@ class BubbleTrap extends Entity {
 		this.baseline = y;
 		this.dir = dir;
 		this.depth = -y;
+		// TODO(bret): CircleCollider?
 		// yes i moved it slightly down on purpose
 		this.collider = new RectCollider(40, 40, -20, -20);
 		this.collider.tag = COLLISION_TAG.BUBBLE;
@@ -155,7 +156,7 @@ class BubbleTrap extends Entity {
 		this.x += this.dir * 1.5;
 		this.graphic.y = Math.sin(this.t * 0.5) * 8.0 - 50.0;
 
-		var view_x = this.x - this.scene.camera.x;
+		let view_x = this.x - this.scene.camera.x;
 		if (view_x < 0.0 || view_x >= this.scene.engine.canvas.width) {
 			if (this.caught) {
 				this.caught.bubble = null;
@@ -176,7 +177,7 @@ class BubbleTrap extends Entity {
 			const e = this.collideEntity(this.x, this.y, [COLLISION_TAG.CHAR]);
 			if (e != null && e != this.owner && !e.bubble) {
 				if (e instanceof Boss) {
-					e.anim_state = -1;
+					e.animState = -1;
 					e.dx = 20.0 * this.dir;
 					e.hurt(1);
 					e.graphic.play('stunned');
@@ -189,38 +190,13 @@ class BubbleTrap extends Entity {
 				} else if (e instanceof Grimey) {
 					e.bubble = this;
 					e.hurt(1);
-					e.anim_state = -1;
+					e.animState = -1;
 					e.graphic.scale = 0.4;
 					e.graphic.play('stuck');
 					this.caught = e;
 				}
 			}
 		}
-	}
-}
-
-class Background extends Entity {
-	constructor(asset_name, canvas_height, assetManager) {
-		super(0, 0);
-		const asset = assetManager.sprites.get(asset_name);
-
-		this.graphic = new Sprite(asset);
-		this.graphic.scale = 0.5;
-		this.depth = 1;
-
-		if (asset_name == ASSETS.BG2_PNG) {
-			this.graphic.scrollX = 0.5;
-			this.depth = 2;
-		}
-
-		this.y = canvas_height - 100 - asset.height * 0.5;
-	}
-
-	update(input) {
-		const limit = 1000;
-		this.x =
-			Math.floor((this.scene.camera.x * this.graphic.scrollX) / limit) *
-			limit;
 	}
 }
 
@@ -267,7 +243,7 @@ class CoolScreen extends Entity {
 				this.scene.addRenderable(e);
 
 				const n = this.scene.entities.inScene.length;
-				for (var i = 0; i < n; ++i) {
+				for (let i = 0; i < n; ++i) {
 					const e = this.scene.entities.inScene[i];
 					if (e instanceof Grimey) {
 						this.scene.removeRenderable(e);
@@ -302,7 +278,7 @@ class Character extends Entity {
 	invFrames = 0;
 	health = 10;
 
-	anim_state = 0;
+	animState = 0;
 	hitbox = null;
 
 	dx = 0;
@@ -311,34 +287,45 @@ class Character extends Entity {
 	flipOffset = 0;
 	friction = 0.5;
 
-	constructor(x, y, asset, initialHealth) {
+	constructor(
+		x,
+		y,
+		{ health, asset, spriteW, spriteH, width, height, tag, flipOffset },
+	) {
 		super(x, y);
 
-		this.health = initialHealth;
+		this.maxHealth = health;
+		this.health = this.maxHealth;
 
-		const h = 80.0;
-		this.collider = new RectCollider(30, 30, -15, -15);
-		this.collider.tag = COLLISION_TAG.CHAR;
+		if (width && height) {
+			// TODO(bret): CircleCollider? (or maybe Ellipsis??)
+			this.collider = new RectCollider(
+				width,
+				height,
+				-width * 0.5,
+				-height * 0.5 - 10,
+			);
+			this.collider.tag = tag ?? COLLISION_TAG.CHAR;
+		}
 
 		if (asset) {
-			this.graphic = new AnimatedSprite(asset, 80, 80);
+			this.graphic = new AnimatedSprite(asset, spriteW, spriteH);
 			this.graphic.centerOO();
 			this.graphic.originY = 0;
 			this.graphic.offsetY = 0;
-			this.graphic.y = -h;
-			this.updateGraphic();
+			this.graphic.y = -this.graphic.frameH;
+
+			this.graphic.add('idle', [0], 60);
+			this.graphic.add('walk', [0, 1, 2, 3], 20);
+			this.graphic.add('punch', [4, 5, 6], 8);
 		}
+
+		this.flipOffset = flipOffset;
 	}
 
 	updateGraphic() {
 		this.graphic.scaleX = this.flip ? -1.0 : 1.0;
-		this.graphic.x = this.getImageXOffset();
-		this.graphic.x += this.flip ? -this.flipOffset : this.flipOffset;
-	}
-
-	getImageXOffset() {
-		return 0;
-		return -(this.y - minY) + (centerY - minY);
+		this.graphic.x = this.flip ? -this.flipOffset : this.flipOffset;
 	}
 
 	onDeath() {
@@ -416,7 +403,7 @@ class Character extends Entity {
 				color: '#ffffff22',
 				type: 'stroke',
 			},
-			drawX - r * 2 + this.getImageXOffset(),
+			drawX - r * 2,
 			drawY - r,
 			r,
 		);
@@ -488,32 +475,21 @@ class Player extends Character {
 	bubbles = 3;
 
 	constructor(x, y, assetManager) {
-		super(x, y);
-		this.health = 10;
-
-		const asset = assetManager.sprites.get(ASSETS.MRCLEAN_PNG);
-		const w = 80.0;
-		const h = 80.0;
-
-		this.collider = new RectCollider(20, 20, -10, -20);
-		this.collider.tag = COLLISION_TAG.CHAR;
-
-		this.graphic = new AnimatedSprite(asset, 80, 80);
-		this.graphic.centerOO();
-		this.graphic.originY = 0;
-		this.graphic.offsetY = 0;
-		this.graphic.y = -h;
-
-		this.graphic.add('idle', [0], 60);
-		this.graphic.add('walk', [0, 1, 2, 3], 20);
-		this.graphic.add('punch', [4, 5, 6], 8);
-
-		this.flipOffset = 10;
+		super(x, y, {
+			health: 10,
+			asset: assetManager.sprites.get(ASSETS.MRCLEAN_PNG),
+			spriteW: 80,
+			spriteH: 80,
+			width: 20,
+			height: 20,
+			tag: COLLISION_TAG.CHAR,
+			flipOffset: 10,
+		});
 	}
 
 	onDeath() {
 		if (!over) {
-			var e = new CoolScreen(
+			let e = new CoolScreen(
 				'GAME OVER!',
 				this.scene.engine.canvas.width,
 				this.scene.engine.canvas.height,
@@ -533,7 +509,7 @@ class Player extends Character {
 			return;
 		}
 
-		if (settings.invincible) this.health = 10;
+		if (settings.invincible) this.health = this.maxHealth;
 
 		if (this.bubbles < 3) {
 			this.bubble_ticks += 1;
@@ -544,7 +520,7 @@ class Player extends Character {
 		}
 
 		let walking = false;
-		var next_state = 0;
+		let next_state = 0;
 		if (this.hitbox !== null) {
 			// hitbox died, we can hit again
 			if (!this.hitbox.scene) {
@@ -571,24 +547,24 @@ class Player extends Character {
 				this.bubbles -= 1;
 				this.bubble_ticks = 0;
 
-				var e = new BubbleTrap(this.x, this.y, this.flip ? -1.0 : 1.0);
+				let e = new BubbleTrap(this.x, this.y, this.flip ? -1.0 : 1.0);
 				this.scene.addEntity(e);
 				this.scene.addRenderable(e);
 			}
 
 			if (input.keyPressed(Keys.Space)) {
-				var xx = this.x + (this.flip ? -40.0 : 20.0);
+				let xx = this.x + (this.flip ? -40.0 : 20.0);
 
-				var e = new Hitbox(this, 2, xx, this.y, this.flip ? -1.0 : 1.0);
+				let e = new Hitbox(this, 2, xx, this.y, this.flip ? -1.0 : 1.0);
 				this.scene.addEntity(e);
 				this.scene.addRenderable(e);
 				this.hitbox = e;
 				next_state = 2;
 			}
 
-			if (this.anim_state != next_state) {
+			if (this.animState != next_state) {
 				this.graphic.play(states2anim[next_state]);
-				this.anim_state = next_state;
+				this.animState = next_state;
 			}
 		}
 
@@ -635,7 +611,7 @@ class Player extends Character {
 			imageSrc: assetManager.sprites.get(ASSETS.BUBBLES2_PNG).image,
 		};
 
-		for (var i = 0; i < this.bubbles; i++) {
+		for (let i = 0; i < this.bubbles; i++) {
 			Draw.image(ctx, imageOptions, 8.0 + i * 32.0, 32.0);
 		}
 	}
@@ -643,19 +619,16 @@ class Player extends Character {
 
 class Boss extends Character {
 	constructor(x, y, assetManager) {
-		const asset = assetManager.sprites.get('grimeboss.png');
-		super(x, y, null, 20);
-
-		const h = 96.0;
-		this.graphic = new AnimatedSprite(asset, 80, 96);
-		this.graphic.centerOO();
-		this.graphic.originY = 0;
-		this.graphic.offsetY = 0;
-		this.graphic.y = -h;
-		this.updateGraphic();
-
-		this.collider = new RectCollider(40, 40, -20, -30);
-		this.collider.tag = COLLISION_TAG.CHAR;
+		super(x, y, {
+			health: 20,
+			asset: assetManager.sprites.get(ASSETS.GRIMEBOSS_PNG),
+			spriteW: 80,
+			spriteH: 96,
+			width: 40,
+			height: 40,
+			tag: COLLISION_TAG.CHAR,
+			flipOffset: 10,
+		});
 
 		this.graphic.add('idle', [0], 60);
 		this.graphic.add('walk', [0, 1, 2, 3], 20);
@@ -665,12 +638,12 @@ class Boss extends Character {
 
 		this.graphic.play('idle');
 
-		this.flipOffset = 10;
+		console.log(this.graphic);
 	}
 
 	onDeath() {
 		if (!over) {
-			var e = new CoolScreen(
+			let e = new CoolScreen(
 				'YOU WON!',
 				this.scene.engine.canvas.width,
 				this.scene.engine.canvas.height,
@@ -699,11 +672,11 @@ class Boss extends Character {
 				this.hitbox = null;
 			}
 		} else {
-			var xx = this.scene.player.x - this.x;
-			var yy = this.scene.player.y - this.y;
-			var dist = Math.max(Math.abs(xx), Math.abs(yy));
+			let xx = this.scene.player.x - this.x;
+			let yy = this.scene.player.y - this.y;
+			let dist = Math.max(Math.abs(xx), Math.abs(yy));
 
-			var next_state = 0;
+			let next_state = 0;
 			if (dist > 45.0) {
 				const speed = 0.9;
 				this.dx += Math.sign(this.scene.player.x - this.x) * speed;
@@ -712,18 +685,18 @@ class Boss extends Character {
 
 				next_state = 1;
 			} else {
-				var xx = this.x + (this.flip ? -40.0 : 20.0);
+				let xx = this.x + (this.flip ? -40.0 : 20.0);
 
-				var e = new Hitbox(this, 1, xx, this.y, this.flip ? -1.0 : 1.0);
+				let e = new Hitbox(this, 1, xx, this.y, this.flip ? -1.0 : 1.0);
 				this.scene.addEntity(e);
 				this.scene.addRenderable(e);
 				this.hitbox = e;
 				next_state = 2;
 			}
 
-			if (this.anim_state != next_state) {
+			if (this.animState != next_state) {
 				this.graphic.play(states2anim[next_state]);
-				this.anim_state = next_state;
+				this.animState = next_state;
 			}
 
 			if (this.x < this.scene.player.x - 400.0) {
@@ -741,31 +714,22 @@ class Grimey extends Character {
 	death_fade = 0.0;
 
 	constructor(x, y, assetManager) {
-		super(x, y);
-
-		const scale = 1.0;
-		const asset = assetManager.sprites.get('badguy.png');
-		const w = 80.0 * scale;
-		const h = 80.0 * scale;
-
-		this.collider = new RectCollider(20, 20, -10, -20);
-		this.collider.tag = COLLISION_TAG.CHAR;
-		this.health = 6;
-
-		this.graphic = new AnimatedSprite(asset, 80, 80);
-		this.graphic.centerOO();
-		this.graphic.originY = 0;
-		this.graphic.offsetY = 0;
-		this.graphic.y = -h;
-		this.graphic.scale = scale;
+		super(x, y, {
+			health: 6,
+			asset: assetManager.sprites.get(ASSETS.BADGUY_PNG),
+			spriteW: 80,
+			spriteH: 80,
+			width: 20,
+			height: 20,
+			tag: COLLISION_TAG.CHAR,
+			flipOffset: 10,
+		});
 
 		this.graphic.add('idle', [0], 60);
 		this.graphic.add('walk', [0, 1, 2, 3], 20);
 		this.graphic.add('punch', [4, 5, 5, 6], 8, false);
 		this.graphic.add('death', [12, 13, 14], 60, false);
 		this.graphic.add('stuck', [14], 60, false);
-
-		this.flipOffset = 10;
 	}
 
 	onDeath() {
@@ -773,6 +737,7 @@ class Grimey extends Character {
 		Sfx.play(asset);
 
 		this.graphic.play('death');
+		// TODO(bret): this.collider.collidable = false;
 		this.collider = null;
 	}
 
@@ -799,19 +764,19 @@ class Grimey extends Character {
 		if (this.hitbox) {
 			// hitbox died, we can hit again
 			if (!this.hitbox.scene) {
-				this.anim_state = -1;
+				this.animState = -1;
 				this.hitbox = null;
 			}
 		} else {
-			var xx = this.scene.player.x - this.x;
-			var yy = this.scene.player.y - this.y;
-			var dist = Math.max(Math.abs(xx), Math.abs(yy));
+			let xx = this.scene.player.x - this.x;
+			let yy = this.scene.player.y - this.y;
+			let dist = Math.max(Math.abs(xx), Math.abs(yy));
 
-			var next_state = 0;
+			let next_state = 0;
 			if (dist > 45.0) {
 				const speed = 0.5;
-				var dx = Math.sign(this.scene.player.x - this.x) * speed;
-				var dy = Math.sign(this.scene.player.y - this.y) * speed;
+				let dx = Math.sign(this.scene.player.x - this.x) * speed;
+				let dy = Math.sign(this.scene.player.y - this.y) * speed;
 				this.x += this.collide(this.x + dx, this.y, [
 					COLLISION_TAG.CHAR,
 				])
@@ -826,18 +791,18 @@ class Grimey extends Character {
 
 				next_state = 1;
 			} else {
-				var xx = this.x + (this.flip ? -40.0 : 20.0);
+				let xx = this.x + (this.flip ? -40.0 : 20.0);
 
-				var e = new Hitbox(this, 1, xx, this.y, this.flip ? -1.0 : 1.0);
+				let e = new Hitbox(this, 1, xx, this.y, this.flip ? -1.0 : 1.0);
 				this.scene.addEntity(e);
 				this.scene.addRenderable(e);
 				this.hitbox = e;
 				next_state = 2;
 			}
 
-			if (this.anim_state != next_state) {
+			if (this.animState != next_state) {
 				this.graphic.play(states2anim[next_state]);
-				this.anim_state = next_state;
+				this.animState = next_state;
 			}
 
 			if (this.x + 400.0 < this.scene.player.x) {
@@ -1143,22 +1108,14 @@ class Level extends Scene {
 
 		const cameraManager = new CameraManager(this.player);
 
-		const bg2 = new Background(ASSETS.BG2_PNG, canvasSize.y, assetManager);
-		const bg = new Background(ASSETS.BG_PNG, canvasSize.y, assetManager);
 		const tiles = new Tiles(assetManager);
 
-		const entities = [
-			ASSETS.BG_SUNSET,
-			ASSETS.BG_CLOUD,
-			ASSETS.BG_PYRAMIDS,
-			// ASSETS.BG_SKYSCRAPERS,
-			// ASSETS.BG_FG,
-		]
+		const entities = [ASSETS.BG_SUNSET, ASSETS.BG_CLOUD, ASSETS.BG_PYRAMIDS]
 			.map((asset) => assetManager.sprites.get(asset))
 			.map((sprite) => {
 				const entity = new Entity(
-					engine.canvas.width >> 1,
-					(engine.canvas.height >> 1) - 80,
+					canvasCenter.x,
+					canvasCenter.y - 80, // 80 is just a magic number lol
 				);
 				entity.depth = DEPTH.BACKGROUND;
 				entity.graphic = new Sprite(sprite);
@@ -1195,19 +1152,20 @@ class Level extends Scene {
 	rooms = [320.0, 320.0, 320.0, 320.0];
 
 	blur() {
-		if (!over) {
-			this.pauseGame();
-		}
+		this.pauseGame();
 	}
 
 	pauseGame() {
+		// TODO(bret): might want to revisit this
+		if (over) return;
+
 		this.engine.pushScene(new PauseScreen(this.engine));
 	}
 
 	update(input) {
 		super.update(input);
 
-		if (!over && input.keyPressed(pauseKeys)) {
+		if (input.keyPressed(pauseKeys)) {
 			this.pauseGame();
 		}
 
@@ -1221,7 +1179,7 @@ class Level extends Scene {
 				screen_min = this.room_start;
 				screen_max = this.room_start + this.engine.canvas.width;
 
-				var e = new CoolScreen(
+				const e = new CoolScreen(
 					'BOSS TIME!',
 					this.engine.canvas.width,
 					this.engine.canvas.height,
@@ -1239,7 +1197,7 @@ class Level extends Scene {
 				const n = random.int(3) + 2;
 				console.log('Spawning ' + n + ' grimeys');
 
-				for (var i = 0; i < n; i++) {
+				for (let i = 0; i < n; i++) {
 					const e = new Grimey(
 						this.room_start +
 							game.canvas.width * 0.5 +
@@ -1298,6 +1256,7 @@ Object.values(ASSETS).forEach((asset) => {
 		case asset.endsWith('.png'):
 			assetManager.addImage(asset);
 			break;
+		case asset.endsWith('.mp3'):
 		case asset.endsWith('.wav'):
 			assetManager.addAudio(asset);
 			break;
@@ -1312,6 +1271,7 @@ assetManager.onLoad(() => {
 			updateMode: 'focus', // or set it to 'focus'
 			renderMode: 'onUpdate',
 		},
+		devMode: true,
 	});
 	game.assetManager = assetManager;
 	game.backgroundColor = '#101010';
