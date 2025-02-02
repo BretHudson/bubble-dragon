@@ -1,12 +1,11 @@
 import { Scene, Entity, Sfx } from './canvas-lord/canvas-lord.js';
-import { Draw } from './canvas-lord/util/draw.js';
-import { Vec2 } from './canvas-lord/util/math.js';
 import {
 	AnimatedSprite,
 	Sprite,
 	Text,
 	GraphicList,
-} from './canvas-lord/util/graphic.js';
+} from './canvas-lord/graphic/index.js';
+import { Keys } from './canvas-lord/core/input.js';
 import { ASSETS } from './assets.js';
 
 const names = [
@@ -38,7 +37,7 @@ function* yieldFor(frames) {
 const logoColor = '#91DAF7';
 const logoDimmed = '#cd9cca';
 
-const speed = 5;
+const speed = 1;
 
 function* walkTo(character, x, speed = 1) {
 	console.log('starting walk to', x);
@@ -188,13 +187,14 @@ export class MenuOptions extends Entity {
 	update(input) {
 		if (this.active) {
 			const dirY =
-				+input.keyPressed('ArrowDown') - +input.keyPressed('ArrowUp');
+				+input.keyPressed(Keys.ArrowDown) -
+				+input.keyPressed(Keys.ArrowUp);
 
 			this.updateSelection(dirY);
 
 			const menuOption = this.menuOptions[this.optionSelected];
 
-			const continueKeys = [' ', 'Enter', 'Return', 'z', 'Z', 'x', 'X'];
+			const continueKeys = [Keys.Space, Keys.Enter, Keys.Z, Keys.X];
 			if (input.keyPressed(continueKeys)) {
 				menuOption.callback();
 			}
@@ -336,15 +336,6 @@ class MenuCharacter extends Entity {
 
 		const w = 80.0;
 		const h = 80.0;
-
-		this.collider = {
-			type: 'rect',
-			tag: 'CHAR',
-			x: -10,
-			y: -20,
-			w: 20,
-			h: 20,
-		};
 
 		this.depth = -1;
 
@@ -534,7 +525,7 @@ export class Menu extends Scene {
 		}
 
 		if (this.creditsOpen) {
-			if (input.keyPressed('Escape', 'Enter', ' ', 'Return')) {
+			if (input.keyPressed(Keys.Escape, Keys.Enter, Keys.Space)) {
 				this.creditsOpen = false;
 			}
 		}

@@ -7,14 +7,16 @@ import {
 	Draw,
 	Tileset,
 } from './canvas-lord/canvas-lord.js';
-import { Vec2 } from './canvas-lord/util/math.js';
-import { Random } from './canvas-lord/util/random.js';
+import { RectCollider } from './canvas-lord/collider/index.js';
+import { Keys } from './canvas-lord/core/input.js';
 import {
 	Text,
 	Sprite,
 	AnimatedSprite,
 	GraphicList,
-} from './canvas-lord/util/graphic.js';
+} from './canvas-lord/graphic/index.js';
+import { Vec2 } from './canvas-lord/math/index.js';
+import { Random } from './canvas-lord/util/random.js';
 import { initDebug } from './debug.js';
 import { Menu, MenuOptions } from './menu.js';
 import { ASSETS } from './assets.js';
@@ -69,6 +71,12 @@ const DEPTH = {
 	BUILDINGS: 9,
 	OVERLAY: -1000,
 	CAMERA: -Infinity,
+};
+
+const COLLISION_TAG = {
+	BUBBLE: 'BUBBLE',
+	CHAR: 'CHAR',
+	HITBOX: 'HITBOX',
 };
 
 const punch_sfx = [
@@ -136,15 +144,9 @@ class BubbleTrap extends Entity {
 		this.baseline = y;
 		this.dir = dir;
 		this.depth = -y;
-		this.collider = {
-			type: 'rect',
-			tag: 'BUBBLE',
-			// yes i moved it slightly down on purpose
-			x: -20,
-			y: -20,
-			w: 40,
-			h: 40,
-		};
+		// yes i moved it slightly down on purpose
+		this.collider = new RectCollider(40, 40, -20, -20);
+		this.collider.tag = COLLISION_TAG.BUBBLE;
 	}
 
 	update(input) {
@@ -171,7 +173,7 @@ class BubbleTrap extends Entity {
 
 		if (!this.caught) {
 			// if an enemy gets caught by a bubble we wanna drag them with it
-			const e = this.collideEntity(this.x, this.y, ['CHAR']);
+			const e = this.collideEntity(this.x, this.y, [COLLISION_TAG.CHAR]);
 			if (e != null && e != this.owner && !e.bubble) {
 				if (e instanceof Boss) {
 					e.anim_state = -1;
@@ -315,14 +317,8 @@ class Character extends Entity {
 		this.health = initialHealth;
 
 		const h = 80.0;
-		this.collider = {
-			type: 'rect',
-			tag: 'CHAR',
-			x: -15,
-			y: -15,
-			w: 30,
-			h: 30,
-		};
+		this.collider = new RectCollider(30, 30, -15, -15);
+		this.collider.tag = COLLISION_TAG.CHAR;
 
 		if (asset) {
 			this.graphic = new AnimatedSprite(asset, 80, 80);
@@ -378,10 +374,10 @@ class Character extends Entity {
 		this.dy -= this.dy * this.friction;
 
 		if (!(this instanceof Player)) {
-			this.x += this.collide(this.x + this.dx, this.y, 'CHAR')
+			this.x += this.collide(this.x + this.dx, this.y, COLLISION_TAG.CHAR)
 				? 0.0
 				: this.dx;
-			this.y += this.collide(this.x, this.y + this.dy, 'CHAR')
+			this.y += this.collide(this.x, this.y + this.dy, COLLISION_TAG.CHAR)
 				? 0.0
 				: this.dy;
 		} else {
@@ -441,21 +437,17 @@ class Hitbox extends Entity {
 		this.dir = dir;
 		this.dmg = d;
 		this.owner = o;
-		this.collider = {
-			type: 'rect',
-			tag: 'HITBOX',
-			x: 0,
-			y: -30,
-			w: 20,
-			h: 60,
-		};
+		this.collider = new RectCollider(20, 60, 0, -30);
+		this.collider.tag = COLLISION_TAG.HITBOX;
 
 		this.time = 30;
 	}
 
 	update(input) {
 		if (this.time <= 10) {
-			const ents = this.collideEntities(this.x, this.y, ['CHAR']);
+			const ents = this.collideEntities(this.x, this.y, [
+				COLLISION_TAG.CHAR,
+			]);
 			ents.forEach((e) => {
 				if (e != null && e != this.owner && e instanceof Character) {
 					if (e.hurt(this.dmg)) {
@@ -482,10 +474,10 @@ class Hitbox extends Entity {
 	}
 }
 
-const keysU = ['w', 'W', 'ArrowUp'];
-const keysD = ['s', 'S', 'ArrowDown'];
-const keysL = ['a', 'A', 'ArrowLeft'];
-const keysR = ['d', 'D', 'ArrowRight'];
+const keysU = [Keys.W, Keys.ArrowUp];
+const keysD = [Keys.S, Keys.ArrowDown];
+const keysL = [Keys.A, Keys.ArrowLeft];
+const keysR = [Keys.D, Keys.ArrowRight];
 
 const states2anim = ['idle', 'walk', 'punch'];
 
@@ -503,14 +495,8 @@ class Player extends Character {
 		const w = 80.0;
 		const h = 80.0;
 
-		this.collider = {
-			type: 'rect',
-			tag: 'CHAR',
-			x: -10,
-			y: -20,
-			w: 20,
-			h: 20,
-		};
+		this.collider = new RectCollider(20, 20, -10, -20);
+		this.collider.tag = COLLISION_TAG.CHAR;
 
 		this.graphic = new AnimatedSprite(asset, 80, 80);
 		this.graphic.centerOO();
@@ -581,7 +567,7 @@ class Player extends Character {
 			this.y += speed * moveVec.y;
 			this.y = Math.clamp(this.y, minY, maxY);
 
-			if (input.keyPressed('z') && this.bubbles > 0) {
+			if (input.keyPressed(Keys.Z) && this.bubbles > 0) {
 				this.bubbles -= 1;
 				this.bubble_ticks = 0;
 
@@ -590,7 +576,7 @@ class Player extends Character {
 				this.scene.addRenderable(e);
 			}
 
-			if (input.keyPressed(' ')) {
+			if (input.keyPressed(Keys.Space)) {
 				var xx = this.x + (this.flip ? -40.0 : 20.0);
 
 				var e = new Hitbox(this, 2, xx, this.y, this.flip ? -1.0 : 1.0);
@@ -668,14 +654,8 @@ class Boss extends Character {
 		this.graphic.y = -h;
 		this.updateGraphic();
 
-		this.collider = {
-			type: 'rect',
-			tag: 'CHAR',
-			x: -20,
-			y: -30,
-			w: 40,
-			h: 40,
-		};
+		this.collider = new RectCollider(40, 40, -20, -30);
+		this.collider.tag = COLLISION_TAG.CHAR;
 
 		this.graphic.add('idle', [0], 60);
 		this.graphic.add('walk', [0, 1, 2, 3], 20);
@@ -768,14 +748,8 @@ class Grimey extends Character {
 		const w = 80.0 * scale;
 		const h = 80.0 * scale;
 
-		this.collider = {
-			type: 'rect',
-			tag: 'CHAR',
-			x: -10,
-			y: -20,
-			w: 20,
-			h: 20,
-		};
+		this.collider = new RectCollider(20, 20, -10, -20);
+		this.collider.tag = COLLISION_TAG.CHAR;
 		this.health = 6;
 
 		this.graphic = new AnimatedSprite(asset, 80, 80);
@@ -838,10 +812,14 @@ class Grimey extends Character {
 				const speed = 0.5;
 				var dx = Math.sign(this.scene.player.x - this.x) * speed;
 				var dy = Math.sign(this.scene.player.y - this.y) * speed;
-				this.x += this.collide(this.x + dx, this.y, ['CHAR'])
+				this.x += this.collide(this.x + dx, this.y, [
+					COLLISION_TAG.CHAR,
+				])
 					? 0.0
 					: dx;
-				this.y += this.collide(this.x, this.y + dy, ['CHAR'])
+				this.y += this.collide(this.x, this.y + dy, [
+					COLLISION_TAG.CHAR,
+				])
 					? 0.0
 					: dy;
 				this.flip = dx ? dx < 0 : dy < 0;
@@ -902,8 +880,8 @@ class CameraManager extends Entity {
 		this.updateSettings();
 
 		if (input && settings.showCamera) {
-			if (input.keyPressed?.('q')) this.dir = -1;
-			if (input.keyPressed?.('e')) this.dir = 1;
+			if (input.keyPressed?.(Keys.Q)) this.dir = -1;
+			if (input.keyPressed?.(Keys.E)) this.dir = 1;
 		}
 
 		const { x, innerDist, outerDist, dir } = this;
@@ -1102,7 +1080,7 @@ class Buildings extends Entity {
 	}
 }
 
-const pauseKeys = ['p', 'P', 'Escape'];
+const pauseKeys = [Keys.Escape, Keys.P];
 
 class PauseScreen extends Scene {
 	constructor(engine) {
