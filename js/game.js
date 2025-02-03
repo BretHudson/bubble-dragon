@@ -183,6 +183,7 @@ class Grimey extends Character {
 			height: 20,
 			tag: COLLISION_TAG.CHAR,
 			flipOffset: 10,
+			points: 1,
 			enemyDirector,
 		});
 
@@ -587,7 +588,9 @@ class EnemyDirector extends Entity {
 	constructor() {
 		super();
 
-		this.offsets = offsets.map((_, index) => ({
+		this.maxPoints = 3;
+
+		this.cells = offsets.map((_, index) => ({
 			index,
 			pos: new Vec2(),
 			enemy: null,
@@ -601,25 +604,30 @@ class EnemyDirector extends Entity {
 	updateOffsets() {
 		const playerPos = new Vec2(this.player.x, this.player.y);
 		for (let i = 0; i < offsets.length; ++i) {
-			this.offsets[i].pos = offsets[i].add(playerPos);
+			this.cells[i].pos = offsets[i].add(playerPos);
 		}
 	}
 
 	register(character) {
-		if (character === this.player) return;
+		if (character.points === undefined) {
+			console.log(character);
+			throw new Error('Character does not have points set');
+		}
+
+		// skip the player
+		if (character.points === -1) return;
 
 		this.enemies.push(character);
 	}
 
 	unregister(character) {
-		const target = this.offsets.find(({ enemy }) => enemy === character);
+		const target = this.cells.find(({ enemy }) => enemy === character);
 		if (target) {
 			character.target = null;
 			target.enemy = null;
 		}
 
 		const index = this.enemies.indexOf(character);
-		console.log(index, character);
 		if (index > -1) {
 			this.enemies.splice(index, 1);
 		}
@@ -628,32 +636,32 @@ class EnemyDirector extends Entity {
 	update() {
 		this.updateOffsets();
 
-		const availableOffsets = this.offsets.filter(({ enemy }) => !enemy);
+		const availableCells = this.cells.filter(({ enemy }) => !enemy);
 
 		this.enemies.forEach((enemy) => {
 			if (enemy.target) return;
 
 			// TODO(bret): Update available offsets!
-			if (availableOffsets.length > 0) {
+			if (availableCells.length > 0) {
 				// otherwise let's find a target
 				const enemyPos = new Vec2(enemy.x, enemy.y);
 
-				const positions = availableOffsets.map(
+				const distances = availableCells.map(
 					({ pos }) => pos.sub(enemyPos).magnitude,
 				);
 
 				let minDist = Infinity;
 				let minIndex;
-				for (let i = 0; i < positions.length; ++i) {
-					if (positions[i] < minDist) {
-						minDist = positions[i];
+				for (let i = 0; i < distances.length; ++i) {
+					if (distances[i] < minDist) {
+						minDist = distances[i];
 						minIndex = i;
 					}
 				}
 
-				enemy.target = availableOffsets[minIndex];
-				availableOffsets[minIndex].enemy = enemy;
-				availableOffsets.splice(minIndex, 1);
+				enemy.target = availableCells[minIndex];
+				availableCells[minIndex].enemy = enemy;
+				availableCells.splice(minIndex, 1);
 			}
 		});
 	}
@@ -662,7 +670,7 @@ class EnemyDirector extends Entity {
 		const drawX = -camera.x;
 		const drawY = -camera.y;
 
-		this.offsets.forEach(({ pos, enemy }, index) => {
+		this.cells.forEach(({ pos, enemy }, index) => {
 			const { x, y } = pos;
 			Draw.circle(
 				ctx,

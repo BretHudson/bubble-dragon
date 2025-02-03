@@ -54,10 +54,13 @@ export class Character extends Entity {
 			height,
 			tag,
 			flipOffset,
+			points,
 			enemyDirector,
 		},
 	) {
 		super(x, y);
+
+		this.points = points;
 
 		this.maxHealth = health;
 		this.health = this.maxHealth;

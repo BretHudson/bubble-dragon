@@ -61,11 +61,11 @@ export class Player extends Character {
 			height: 20,
 			tag: COLLISION_TAG.CHAR,
 			flipOffset: 10,
+			points: -1,
 			enemyDirector,
 		});
 
 		this.enemyDirector.player = this;
-		this.enemyDirector.unregister(this); // don't care about the player lol
 
 		this.ignoreCollisions = true;
 		this.currentState = 'idle';
