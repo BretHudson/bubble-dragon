@@ -19,11 +19,19 @@ import { Vec2 } from './canvas-lord/math/index.js';
 import { Random } from './canvas-lord/util/random.js';
 import { initDebug } from './debug.js';
 import { Menu, MenuOptions } from './menu.js';
-import { assetManager, ASSETS, DEPTH, COLLISION_TAG, punch_sfx, settings, defaultSettings } from './assets.js';
+import {
+	assetManager,
+	ASSETS,
+	DEPTH,
+	COLLISION_TAG,
+	punch_sfx,
+	settings,
+	defaultSettings,
+} from './assets.js';
 import { Character } from './entities/character.js';
 import { Player } from './entities/player.js';
 import { Hitbox } from './entities/hitbox.js';
-
+import { HUD } from './entities/hud.js';
 
 const minY = 200;
 const maxY = 380;
@@ -679,6 +687,10 @@ class Level extends Scene {
 			this.addEntity(e);
 			this.addRenderable(e);
 		});
+
+		const hud = new HUD(this.player);
+		this.addEntity(hud);
+		this.addRenderable(hud);
 
 		// a lil' cheat for making the camera immediately snap
 		for (let i = 0; i < 100; ++i) cameraManager.update({});

@@ -19,7 +19,14 @@ import { Vec2 } from '../canvas-lord/math/index.js';
 import { Random } from '../canvas-lord/util/random.js';
 import { initDebug } from '../debug.js';
 import { Menu, MenuOptions } from '../menu.js';
-import { assetManager, ASSETS, DEPTH, COLLISION_TAG, punch_sfx, settings } from '../assets.js';
+import {
+	assetManager,
+	ASSETS,
+	DEPTH,
+	COLLISION_TAG,
+	punch_sfx,
+	settings,
+} from '../assets.js';
 import { Character } from './character.js';
 import { Hitbox } from './hitbox.js';
 import { BubbleTrap } from './bubble-trap.js';
@@ -48,19 +55,19 @@ export class Player extends Character {
 			tag: COLLISION_TAG.CHAR,
 			flipOffset: 10,
 		});
-		
+
 		// TODO(bret): remove this hack (see render())
 		this.assetManager = assetManager;
-		
+
 		this.ignoreCollisions = true;
-		
+
 		this.graphic.add('idle', [0], 60);
 		this.graphic.add('walk', [0, 1, 2, 3], 20);
 		this.graphic.add('punch', [4, 5, 5, 5, 6], 8, false, () => {
 			this.postPunch();
 		});
 	}
-	
+
 	postPunch() {
 		this.graphic.play('idle');
 	}
@@ -122,14 +129,19 @@ export class Player extends Character {
 				this.bubbles -= 1;
 				this.bubble_ticks = 0;
 
-				let e = new BubbleTrap(this.x, this.y, this.flip ? -1.0 : 1.0, this.assetManager);
+				let e = new BubbleTrap(
+					this.x,
+					this.y,
+					this.flip ? -1.0 : 1.0,
+					this.assetManager,
+				);
 				this.scene.addEntity(e);
 				this.scene.addRenderable(e);
 			}
 
 			if (input.keyPressed(Keys.Space)) {
 				let xx = this.x + (this.flip ? -40.0 : 20.0);
-				
+
 				let e = new Hitbox(this, 2, xx, this.y, this.flip ? -1.0 : 1.0);
 				e.collider.collidable = false;
 				this.scene.addEntity(e);
@@ -145,50 +157,5 @@ export class Player extends Character {
 		}
 
 		super.update(input);
-	}
-
-	render(ctx, camera) {
-		// this.graphic.x = -(this.y - minY);
-		this.graphic.x = this.flip ? -10 : 10;
-
-		super.render(ctx, camera);
-
-		const rectOptions = {
-			type: 'fill',
-			angle: 0.0,
-			scaleX: 1.0,
-			scaleY: 1.0,
-			originX: 0.0,
-			originY: 0.0,
-			offsetX: 0.0,
-			offsetY: 0.0,
-		};
-
-		rectOptions.color = 'red';
-		Draw.rect(ctx, rectOptions, 8.0, 8.0, (this.health / 10) * 100.0, 16.0);
-		rectOptions.color = 'black';
-		Draw.rect(
-			ctx,
-			rectOptions,
-			8.0 + (this.health / 10) * 100.0,
-			8.0,
-			(1.0 - this.health / 10) * 100.0,
-			16.0,
-		);
-
-		const imageOptions = {
-			angle: 0.0,
-			scaleX: 1.0,
-			scaleY: 1.0,
-			originX: 0,
-			originY: 0,
-			offsetX: 0,
-			offsetY: 0,
-			imageSrc: this.assetManager.sprites.get(ASSETS.BUBBLES2_PNG).image,
-		};
-
-		for (let i = 0; i < this.bubbles; i++) {
-			Draw.image(ctx, imageOptions, 8.0 + i * 32.0, 32.0);
-		}
 	}
 }
