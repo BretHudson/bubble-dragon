@@ -576,10 +576,12 @@ class PauseScreen extends Scene {
 }
 
 const dist = 60;
-const offsets = cardinalNorms.map(([x, y]) => {
-	const xx = y ? x * dist : x * dist * 1.2;
-	return new Vec2(xx, y * dist);
-});
+const offsets = cardinalNorms
+	.filter(([x]) => x)
+	.map(([x, y]) => {
+		const xx = y ? x * dist : x * dist * 1.2;
+		return new Vec2(xx, y * dist);
+	});
 
 class EnemyDirector extends Entity {
 	constructor() {
