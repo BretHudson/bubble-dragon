@@ -38,13 +38,14 @@ export class OverlayEntity extends Entity {
 
 			const { Boss, Grimey } = this.entities;
 
-			const e = new Boss(
+			const boss = new Boss(
 				this.scene.room_start + this.scene.engine.canvas.width * 0.5,
 				this.scene.engine.canvas.height * 0.5,
 				assetManager,
 			);
-			this.scene.addEntity(e);
-			this.scene.addRenderable(e);
+			this.scene.boss = boss;
+			this.scene.addEntity(boss);
+			this.scene.addRenderable(boss);
 
 			const n = this.scene.entities.inScene.length;
 			for (let i = 0; i < n; ++i) {

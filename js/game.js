@@ -121,14 +121,6 @@ class Boss extends Character {
 		this.animState = -1;
 	}
 
-	onDeath() {
-		super.onDeath();
-
-		this.scene.engine.pushScene(
-			new ResultsScene(this.scene.engine, 'Game Complete', false),
-		);
-	}
-
 	update(input) {
 		if (this.invFrames > 0) {
 			this.friction = 0.3;
@@ -639,6 +631,12 @@ class Level extends Scene {
 		if (this.player.isDead) {
 			this.engine.pushScene(
 				new ResultsScene(this.engine, 'Game Over', false),
+			);
+		}
+
+		if (this.boss?.isDead) {
+			this.engine.pushScene(
+				new ResultsScene(this.engine, 'Game Complete', false),
 			);
 		}
 
