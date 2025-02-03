@@ -176,7 +176,7 @@ class BubbleTrap extends Entity {
 		if (!this.caught) {
 			// if an enemy gets caught by a bubble we wanna drag them with it
 			const e = this.collideEntity(this.x, this.y, [COLLISION_TAG.CHAR]);
-			if (e != null && e != this.owner && !e.bubble) {
+			if (e !== null && e !== this.owner && !e.bubble) {
 				if (e instanceof Boss) {
 					e.animState = -1;
 					e.dx = 20.0 * this.dir;
@@ -359,7 +359,7 @@ class Character extends Entity {
 	update(input) {
 		super.update(input);
 
-		if (this.scene == null) {
+		if (this.scene === null) {
 			return; // we just died
 		}
 
@@ -435,21 +435,22 @@ class Hitbox extends Entity {
 		this.owner = o;
 		this.collider = new BoxCollider(20, 60, 0, -30);
 		this.collider.tag = COLLISION_TAG.HITBOX;
-
-		this.time = 30;
+		this.hasCollided = false;
 	}
 
 	update(input) {
 		this.collider.collidable = this.owner.graphic.frameId === 5;
 		
 		if (this.collider.collidable) {
+			this.hasCollided = true;
+			
 			const ents = this.collideEntities(this.x, this.y, [
 				COLLISION_TAG.CHAR,
 			]);
 			ents.forEach((e) => {
-				if (e != null && e != this.owner && e instanceof Character) {
+				if (e !== null && e !== this.owner && e instanceof Character) {
 					if (e.hurt(this.dmg)) {
-						if (e.health == 0) {
+						if (e.health === 0) {
 							e.dx = 30.0 * this.dir;
 							e.friction = 0.2;
 						}
@@ -461,13 +462,11 @@ class Hitbox extends Entity {
 					}
 				}
 			});
-		}
-
-		this.time -= 1;
-		if (this.time == 0) {
-			this.scene.removeRenderable(this);
+		} else if (this.hasCollided) {
+			if (this.owner.hitbox === this)
+				this.owner.hitbox = null;
 			this.scene.removeEntity(this);
-			this.scene = null;
+			this.scene.removeRenderable(this);
 		}
 	}
 }
@@ -499,7 +498,13 @@ class Player extends Character {
 		
 		this.graphic.add('idle', [0], 60);
 		this.graphic.add('walk', [0, 1, 2, 3], 20);
-		this.graphic.add('punch', [4, 5, 5, 6], 8, false);
+		this.graphic.add('punch', [4, 5, 5, 5, 6], 8, false, () => {
+			this.postPunch();
+		});
+	}
+	
+	postPunch() {
+		this.graphic.play('idle');
 	}
 
 	onDeath() {
@@ -536,12 +541,8 @@ class Player extends Character {
 
 		let walking = false;
 		let next_state = 0;
-		if (this.hitbox !== null) {
-			// hitbox died, we can hit again
-			if (!this.hitbox.scene) {
-				this.hitbox = null;
-			}
-		} else {
+		const punching = this.graphic?.currentAnimation?.name === 'punch';
+		if (!punching) {
 			const speed = settings.playerSpeed;
 			let moveVec = new Vec2(0, 0);
 
@@ -578,7 +579,7 @@ class Player extends Character {
 				next_state = 2;
 			}
 
-			if (this.animState != next_state) {
+			if (this.animState !== next_state) {
 				this.graphic.play(states2anim[next_state]);
 				this.animState = next_state;
 			}
@@ -708,7 +709,7 @@ class Boss extends Character {
 				next_state = 2;
 			}
 
-			if (this.animState != next_state) {
+			if (this.animState !== next_state) {
 				this.graphic.play(states2anim[next_state]);
 				this.animState = next_state;
 			}
@@ -756,8 +757,8 @@ class Grimey extends Character {
 	}
 
 	update(input) {
-		if (this.health == 0) {
-			if (this.graphic.frame == 2) {
+		if (this.health === 0) {
+			if (this.graphic.frame === 2) {
 				this.death_fade += 0.33 / 60.0;
 				this.graphic.alpha = 1.0 - this.death_fade;
 				if (this.death_fade > 1.0) {
@@ -767,7 +768,7 @@ class Grimey extends Character {
 			return;
 		} else if (over) {
 			return;
-		} else if (this.bubble != null) {
+		} else if (this.bubble !== null) {
 			this.x = this.bubble.x;
 			this.y = this.bubble.y;
 			this.graphic.x = 0.0;
@@ -814,7 +815,7 @@ class Grimey extends Character {
 				next_state = 2;
 			}
 
-			if (this.animState != next_state) {
+			if (this.animState !== next_state) {
 				this.graphic.play(states2anim[next_state]);
 				this.animState = next_state;
 			}
@@ -867,7 +868,7 @@ class CameraManager extends Entity {
 		let forceX = x + innerDist * dir;
 		let toggleX = x - outerDist * dir;
 		let followX = x - innerDist * dir;
-		if (dir == 1) {
+		if (dir === 1) {
 			--forceX;
 			--toggleX;
 		}
@@ -880,7 +881,7 @@ class CameraManager extends Entity {
 			this.x += Math.sign(dist) * spd;
 		}
 
-		if (Math.sign(realFollowX - toggleX) == -dir) {
+		if (Math.sign(realFollowX - toggleX) === -dir) {
 			this.dir = Math.sign(realFollowX - toggleX);
 		}
 
@@ -949,11 +950,11 @@ class Skyscrapers extends Entity {
 
 		this.graphic.scrollX = 0.25;
 
-		this.graphic.add('0', [0], 100);
-		this.graphic.add('1', [1], 100);
-		this.graphic.add('2', [2], 100);
-		this.graphic.add('3', [3], 100);
-		this.graphic.add('4', [4], 100);
+		this.graphic.add('0', [0], 1, false);
+		this.graphic.add('1', [1], 1, false);
+		this.graphic.add('2', [2], 1, false);
+		this.graphic.add('3', [3], 1, false);
+		this.graphic.add('4', [4], 1, false);
 
 		this.updateImage();
 		this.graphic.update();
@@ -1186,7 +1187,7 @@ class Level extends Scene {
 			this.furthest_room < this.rooms.length &&
 			dist > this.rooms[this.furthest_room]
 		) {
-			if (this.furthest_room == this.rooms.length - 1) {
+			if (this.furthest_room === this.rooms.length - 1) {
 				this.room_start += this.rooms[this.furthest_room++];
 				screen_min = this.room_start;
 				screen_max = this.room_start + this.engine.canvas.width;
@@ -1201,7 +1202,7 @@ class Level extends Scene {
 				this.addRenderable(e);
 			} else {
 				this.room_start += this.rooms[this.furthest_room++];
-				if (this.furthest_room == this.rooms.length - 1) {
+				if (this.furthest_room === this.rooms.length - 1) {
 					screen_max =
 						this.room_start + this.rooms[this.furthest_room];
 				}
