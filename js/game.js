@@ -181,7 +181,9 @@ class Boss extends Character {
 
 		this.graphic.add('idle', [0], 60);
 		this.graphic.add('walk', [0, 1, 2, 3], 20);
-		this.graphic.add('punch', [6, 7, 8], 8, false, () => {this.postPunch()});
+		this.graphic.add('punch', [6, 7, 8], 8, false, () => {
+			this.postPunch();
+		});
 		this.graphic.add('death', [18, 19, 20], 60, false);
 		this.graphic.add('stunned', [19], 30, false);
 
