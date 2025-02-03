@@ -93,8 +93,10 @@ export class Scene {
             this.engine.canvas.blur();
         if (!this.shouldUpdate)
             return;
-        this.entities.inScene.forEach((entity) => entity.update(input));
-        this.entities.inScene.forEach((entity) => entity.graphic?.update?.(input));
+        this.entities.inScene.forEach((entity) => {
+            entity.update(input);
+            entity.graphic?.update?.(input)
+        });
         // this.renderables = this.renderables.filter(e => e).sort();
         this.componentSystemMap.forEach((systems, component) => {
             systems.forEach((system) => {

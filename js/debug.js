@@ -20,6 +20,7 @@ const types = {
 	cameraInner: 'number',
 	cameraOuter: 'number',
 	cameraSpeed: 'number',
+	enemyHealth: 'number',
 };
 
 const values = {
@@ -27,6 +28,7 @@ const values = {
 	cameraInner: { min: 0, max: 500, step: 1 },
 	cameraOuter: { min: 0, max: 500, step: 1 },
 	cameraSpeed: { min: 0, max: 100, step: 0.1 },
+	enemyHealth: { min: 1, max: 100, step: 1 },
 };
 
 const saveSettings = () => {
