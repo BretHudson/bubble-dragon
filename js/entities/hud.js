@@ -7,25 +7,39 @@ export class HUD extends Entity {
 		super(8, 8);
 
 		this.player = player;
+		const { maxHealth } = player;
 
 		const graphicList = new GraphicList();
 
 		graphicList.scrollX = 0;
 		graphicList.scrollY = 0;
 
-		const healthW = 100;
+		const healthBlockW = 8;
+		const healthP = 2;
 		const healthH = 16;
+
+		const healthBarW = healthBlockW * maxHealth + healthP * (maxHealth + 1);
 
 		const borderSize = 1;
 		this.healthBorder = Sprite.createRect(
-			healthW + borderSize * 2,
+			healthBarW + borderSize * 2,
 			healthH + borderSize * 2,
 			'#888',
 		);
 		this.healthBorder.x = -borderSize;
 		this.healthBorder.y = -borderSize;
-		this.healthBg = Sprite.createRect(healthW, healthH, 'black');
-		this.healthFg = Sprite.createRect(healthW, healthH, 'red');
+		this.healthBg = Sprite.createRect(healthBarW, healthH, 'black');
+		this.healthFg = [];
+		for (let i = 0; i < maxHealth; ++i) {
+			const block = Sprite.createRect(
+				healthBlockW,
+				healthH - healthP * 2,
+				'red',
+			);
+			block.x = healthP + i * (healthBlockW + healthP);
+			block.y = healthP;
+			this.healthFg.push(block);
+		}
 
 		const addGraphic = (gfx) => {
 			graphicList.add(gfx);
@@ -35,7 +49,8 @@ export class HUD extends Entity {
 
 		addGraphic(this.healthBorder);
 		addGraphic(this.healthBg);
-		addGraphic(this.healthFg);
+		// addGraphic(this.healthFg);
+		this.healthFg.forEach(addGraphic);
 
 		this.bubbles = [];
 		const bubbleSprite = assetManager.sprites.get(ASSETS.BUBBLES2_PNG);
@@ -54,20 +69,29 @@ export class HUD extends Entity {
 		this.update();
 	}
 
+	illuminate(sprites, count, on = 1, off = 0) {
+		let i = 0;
+		for (; i < count; ++i) {
+			sprites[i].alpha = on;
+			sprites[i].color = undefined;
+		}
+		for (; i < sprites.length; ++i) {
+			sprites[i].alpha = off;
+			sprites[i].color = undefined;
+		}
+	}
+
 	update() {
-		const { health, maxHealth } = this.player;
-		const healthPercent = health / maxHealth;
+		const { health } = this.player;
 
 		const bubbles = this.player.bubbles;
 
-		this.healthFg.scaleX = healthPercent;
+		this.illuminate(this.healthFg, health, 1, 0);
+		this.illuminate(this.bubbles, bubbles, 1, 0.6);
 
-		let i = 0;
-		for (; i < bubbles; ++i) {
-			this.bubbles[i].alpha = 1;
-		}
-		for (; i < this.bubbles.length; ++i) {
-			this.bubbles[i].alpha = 0.6;
+		if (this.player.invFrames) {
+			this.healthFg[health].alpha = +(this.player.invFrames % 16 >= 8);
+			this.healthFg[health].color = 'white';
 		}
 	}
 }
