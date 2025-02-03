@@ -7,7 +7,7 @@ import {
 	Draw,
 	Tileset,
 } from './canvas-lord/canvas-lord.js';
-import { RectCollider } from './canvas-lord/collider/index.js';
+import { BoxCollider } from './canvas-lord/collider/index.js';
 import { Keys } from './canvas-lord/core/input.js';
 import {
 	Text,
@@ -146,7 +146,7 @@ class BubbleTrap extends Entity {
 		this.depth = -y;
 		// TODO(bret): CircleCollider?
 		// yes i moved it slightly down on purpose
-		this.collider = new RectCollider(40, 40, -20, -20);
+		this.collider = new BoxCollider(40, 40, -20, -20);
 		this.collider.tag = COLLISION_TAG.BUBBLE;
 	}
 
@@ -300,7 +300,7 @@ class Character extends Entity {
 
 		if (width && height) {
 			// TODO(bret): CircleCollider? (or maybe Ellipsis??)
-			this.collider = new RectCollider(
+			this.collider = new BoxCollider(
 				width,
 				height,
 				-width * 0.5,
@@ -425,7 +425,7 @@ class Hitbox extends Entity {
 		this.dir = dir;
 		this.dmg = d;
 		this.owner = o;
-		this.collider = new RectCollider(20, 60, 0, -30);
+		this.collider = new BoxCollider(20, 60, 0, -30);
 		this.collider.tag = COLLISION_TAG.HITBOX;
 
 		this.time = 30;
