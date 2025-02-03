@@ -636,10 +636,24 @@ class EnemyDirector extends Entity {
 	update() {
 		this.updateOffsets();
 
+		// instant KO
+		const cellsToRecycle = this.cells.filter(
+			({ enemy }) => enemy && enemy.isDead,
+		);
+		cellsToRecycle.forEach(({ enemy }) => this.unregister(enemy));
+
+		let curPoints = this.cells
+			.filter(({ enemy }) => enemy)
+			.map(({ enemy }) => enemy.points)
+			.reduce((a, v) => a + v, 0);
+		if (curPoints >= this.maxPoints) return;
+
 		const availableCells = this.cells.filter(({ enemy }) => !enemy);
 
 		this.enemies.forEach((enemy) => {
 			if (enemy.target) return;
+
+			if (enemy.points > this.maxPoints - curPoints) return;
 
 			// TODO(bret): Update available offsets!
 			if (availableCells.length > 0) {
@@ -662,6 +676,7 @@ class EnemyDirector extends Entity {
 				enemy.target = availableCells[minIndex];
 				availableCells[minIndex].enemy = enemy;
 				availableCells.splice(minIndex, 1);
+				curPoints += enemy.points;
 			}
 		});
 	}
