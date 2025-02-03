@@ -1,4 +1,4 @@
-/* Canvas Lord v0.5.0 */
+/* Canvas Lord v0.5.1 */
 import { Collider } from './collider.js';
 import { Vec2 } from '../math/index.js';
 import { Draw } from '../util/draw.js';
@@ -16,6 +16,9 @@ export class PolygonCollider extends Collider {
     }
     get bottom() {
         return Math.max(...this.vertices.map(([_, y]) => y));
+    }
+    setPoints(value) {
+        this.#points = value;
     }
     get vertices() {
         return this.#points.map(([x, y]) => [

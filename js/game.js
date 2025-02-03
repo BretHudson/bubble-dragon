@@ -215,9 +215,10 @@ class CoolScreen extends Entity {
 		this.bg.scrollX = 0.0;
 		this.graphic.add(this.bg);
 
-		this.txt = new Text(txt, 0, 0);
-		this.txt.font = 'Skullboy';
-		this.txt.size = 32.0;
+		this.txt = new Text(txt, 0, 0, {
+			font: 'Skullboy',
+			size: 32,
+		});
 		this.txt.scrollX = 0.0;
 		this.txt.centerOrigin();
 		this.graphic.add(this.txt);
@@ -1060,9 +1061,7 @@ class PauseScreen extends Scene {
 
 		const yPad = 20;
 
-		const text = new Text('PAUSED');
-		text.font = 'Skullboy';
-		text.size = 48;
+		const text = new Text('PAUSED', 0, 0, { font: 'Skullboy', size: 48 });
 		text.centerOO();
 		const textEntity = new Entity(width >> 1, height >> 1);
 		textEntity.y -= yPad * 2;

@@ -30,6 +30,8 @@ const bullet = '/';
 
 const leading = 24;
 
+const font = 'Skullboy';
+
 function* yieldFor(frames) {
 	while (frames--) yield;
 }
@@ -226,10 +228,7 @@ export class MenuOptions extends Entity {
 	}
 
 	addText(str, x, y, size) {
-		const text = new Text(str, x, y);
-		// const text = new Text(str, 0, 0);
-		text.font = 'Skullboy';
-		text.size = size;
+		const text = new Text(str, x, y, { font, size });
 		text.centerOO();
 		this.graphic.add(text);
 		return text;
@@ -251,19 +250,21 @@ class MenuCredit extends Entity {
 
 		this.name = name.replace('-', '');
 		this.short = name.split(' ')[0].split('-')[0];
-		const text = new Text(this.name, 0, y);
+		const text = new Text(this.name, 0, y, {
+			font,
+			size: 32,
+			align: 'center',
+		});
 		text.count = this.short.length;
-		text.font = 'Skullboy';
-		text.size = 32;
-		text.align = 'center';
 		this.text = text;
 		this.graphic.add(text);
 
-		const role = new Text(roleText, 0, y - 18);
-		role.font = 'SkullBoy';
-		role.align = 'center';
-		role.size = 18;
-		role.color = '#bbc';
+		const role = new Text(roleText, 0, y - 18, {
+			font,
+			align: 'center',
+			size: 18,
+			color: '#bbc',
+		});
 		role.alpha = 0;
 		this.role = role;
 		this.graphic.add(role);
@@ -271,7 +272,7 @@ class MenuCredit extends Entity {
 		// centerOrigin() sets the width/height
 		// text.centerOrigin();
 		// text.offsetX = text.offsetY = 0;
-		text.height = 14;
+		// text.height = 14;
 		text.offsetY = -7;
 	}
 
@@ -284,7 +285,7 @@ class MenuCredit extends Entity {
 		this.x = Math.lerp(this.startX, width >> 1, t);
 
 		this.y = Math.lerp(0, this.index * leading * 2, t);
-		this.text.height = 14;
+		// this.text.height = 14;
 		this.text.offsetY = -7;
 
 		this.expand = t >= 1;
@@ -554,9 +555,7 @@ export class Menu extends Scene {
 	}
 
 	addText(str, x, y, size) {
-		const text = new Text(str);
-		text.font = 'Skullboy';
-		text.size = size;
+		const text = new Text(str, 0, 0, { font, size });
 		text.centerOO();
 		return this.addGraphic(text, x, y);
 	}
