@@ -78,30 +78,30 @@ export class AnimatedSprite extends Graphic {
         this.originY = -this.frameH >> 1;
     }
     update() {
-        if (this.currentAnimation) {
-            if (this.currentAnimation.done) return;
-            
-            const { frames, frameRate } = this.currentAnimation;
-            
-            let atEnd = false;
-            const dur = frameRate * frames.length;
-            if (this.inc >= dur) {
-               atEnd = true;
-               this.inc -= dur;
-               this.currentAnimation.callback?.(this.currentAnimation.name);
-            }
-            
-            this.frame = Math.floor(this.inc / frameRate);
+        if (!this.currentAnimation) return;
+        if (this.currentAnimation.done) return;
+        
+        const { frames, frameRate } = this.currentAnimation;
+        
+        let atEnd = false;
+        const dur = frameRate * frames.length;
+        if (this.inc >= dur) {
+            atEnd = true;
             if (this.currentAnimation.loop) {
-                this.frame %= frames.length;
+                this.inc = 0;
             }
-            else {
-                this.frame = Math.min(this.frame, frames.length - 1);
-                if (atEnd) this.currentAnimation.done = true;
-            }
-            this.frameId = frames[this.frame];
-            ++this.inc;
+            this.currentAnimation.callback?.(this.currentAnimation.name);
         }
+        
+        this.frame = Math.floor(this.inc / frameRate);
+        if (this.currentAnimation.loop) {
+            this.frame %= frames.length;
+        } else {
+            this.frame = Math.min(this.frame, frames.length - 1);
+            if (atEnd) this.currentAnimation.done = true;
+        }
+        this.frameId = frames[this.frame];
+        ++this.inc;
     }
     render(ctx, camera = Vec2.zero) {
         const { frameId, frameW, frameH } = this;

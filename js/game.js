@@ -173,11 +173,16 @@ class Boss extends Character {
 
 		this.graphic.add('idle', [0], 60);
 		this.graphic.add('walk', [0, 1, 2, 3], 20);
-		this.graphic.add('punch', [6, 7, 8], 8, false);
+		this.graphic.add('punch', [6, 7, 8], 8, false, () => {this.postPunch()});
 		this.graphic.add('death', [18, 19, 20], 60, false);
 		this.graphic.add('stunned', [19], 30, false);
 
 		this.graphic.play('idle');
+	}
+
+	postPunch() {
+		this.graphic.play('idle');
+		this.animState = -1;
 	}
 
 	onDeath() {
@@ -205,12 +210,8 @@ class Boss extends Character {
 		}
 		this.friction = 0.5;
 
-		if (this.hitbox !== null) {
-			// hitbox died, we can hit again
-			if (!this.hitbox.scene) {
-				this.hitbox = null;
-			}
-		} else {
+		const punching = this.graphic?.currentAnimation?.name === 'punch';
+		if (!punching) {
 			let xx = this.scene.player.x - this.x;
 			let yy = this.scene.player.y - this.y;
 			let dist = Math.max(Math.abs(xx), Math.abs(yy));
@@ -266,9 +267,16 @@ class Grimey extends Character {
 
 		this.graphic.add('idle', [0], 60);
 		this.graphic.add('walk', [0, 1, 2, 3], 20);
-		this.graphic.add('punch', [4, 5, 5, 6], 8, false);
+		this.graphic.add('punch', [4, 5, 5, 6], 8, false, () => {
+			this.postPunch();
+		});
 		this.graphic.add('death', [12, 13, 14], 60, false);
 		this.graphic.add('stuck', [14], 60, false);
+	}
+
+	postPunch() {
+		this.graphic.play('idle');
+		this.animState = -1;
 	}
 
 	onDeath() {
@@ -281,6 +289,10 @@ class Grimey extends Character {
 	}
 
 	update(input) {
+		if (over) {
+			return;
+		}
+
 		if (this.health === 0) {
 			if (this.graphic.frame === 2) {
 				this.death_fade += 0.33 / 60.0;
@@ -290,9 +302,9 @@ class Grimey extends Character {
 				}
 			}
 			return;
-		} else if (over) {
-			return;
-		} else if (this.bubble) {
+		}
+
+		if (this.bubble) {
 			this.x = this.bubble.x;
 			this.y = this.bubble.y;
 			this.graphic.x = 0.0;
@@ -300,13 +312,8 @@ class Grimey extends Character {
 			return;
 		}
 
-		if (this.hitbox) {
-			// hitbox died, we can hit again
-			if (!this.hitbox.scene) {
-				this.animState = -1;
-				this.hitbox = null;
-			}
-		} else {
+		const punching = this.graphic?.currentAnimation?.name === 'punch';
+		if (!punching) {
 			let xx = this.scene.player.x - this.x;
 			let yy = this.scene.player.y - this.y;
 			let dist = Math.max(Math.abs(xx), Math.abs(yy));

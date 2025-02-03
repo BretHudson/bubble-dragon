@@ -49,9 +49,6 @@ export class Player extends Character {
 			flipOffset: 10,
 		});
 		
-		// TODO(bret): remove this hack (see render())
-		this.assetManager = assetManager;
-		
 		this.ignoreCollisions = true;
 		
 		this.graphic.add('idle', [0], 60);
@@ -122,7 +119,7 @@ export class Player extends Character {
 				this.bubbles -= 1;
 				this.bubble_ticks = 0;
 
-				let e = new BubbleTrap(this.x, this.y, this.flip ? -1.0 : 1.0, this.assetManager);
+				let e = new BubbleTrap(this.x, this.y, this.flip ? -1.0 : 1.0, assetManager);
 				this.scene.addEntity(e);
 				this.scene.addRenderable(e);
 			}
@@ -184,7 +181,7 @@ export class Player extends Character {
 			originY: 0,
 			offsetX: 0,
 			offsetY: 0,
-			imageSrc: this.assetManager.sprites.get(ASSETS.BUBBLES2_PNG).image,
+			imageSrc: assetManager.sprites.get(ASSETS.BUBBLES2_PNG).image,
 		};
 
 		for (let i = 0; i < this.bubbles; i++) {

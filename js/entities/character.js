@@ -141,8 +141,6 @@ export class Character extends Entity {
 	render(ctx, camera) {
 		const drawX = this.x - camera.x;
 		const drawY = this.y - camera.y;
-		
-		Draw.text(ctx, { type: 'fill', color: 'white' }, drawX, drawY, this.invFrames.toString());
 
 		const r = 9;
 		const circleOptions = {
