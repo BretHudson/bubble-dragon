@@ -19,7 +19,14 @@ import { Vec2 } from '../canvas-lord/math/index.js';
 import { Random } from '../canvas-lord/util/random.js';
 import { initDebug } from '../debug.js';
 import { Menu, MenuOptions } from '../menu.js';
-import { assetManager, ASSETS, DEPTH, COLLISION_TAG, punch_sfx, settings } from '../assets.js';
+import {
+	assetManager,
+	ASSETS,
+	DEPTH,
+	COLLISION_TAG,
+	punch_sfx,
+	settings,
+} from '../assets.js';
 
 const invincibilityDuration = 30;
 export class Character extends Entity {
@@ -67,6 +74,10 @@ export class Character extends Entity {
 		this.flipOffset = flipOffset;
 	}
 
+	get isDead() {
+		return this.health <= 0;
+	}
+
 	updateGraphic() {
 		this.graphic.scaleX = this.flip ? -1.0 : 1.0;
 		this.graphic.x = this.flip ? -this.flipOffset : this.flipOffset;
@@ -93,13 +104,13 @@ export class Character extends Entity {
 		this.updateHitFlash();
 		return true;
 	}
-	
+
 	updateHitFlash() {
 		if (this.health <= 0) {
 			this.hitFlash = false;
 			return;
 		}
-		this.hitFlash = this.invFrames && (this.invFrames % 16 >= 8);
+		this.hitFlash = this.invFrames && this.invFrames % 16 >= 8;
 	}
 
 	update(input) {

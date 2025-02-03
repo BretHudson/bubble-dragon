@@ -69,23 +69,6 @@ export class Player extends Character {
 		this.graphic.play('idle');
 	}
 
-	onDeath() {
-		if (!over) {
-			let e = new CoolScreen(
-				'GAME OVER!',
-				this.scene.engine.canvas.width,
-				this.scene.engine.canvas.height,
-				false,
-			);
-			this.scene.addEntity(e);
-			this.scene.addRenderable(e);
-
-			over = true;
-		}
-
-		super.onDeath();
-	}
-
 	update(input) {
 		if (this.over) {
 			return;
