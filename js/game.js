@@ -653,10 +653,8 @@ class Level extends Scene {
 				screen_max = this.room_start + this.engine.canvas.width;
 
 				const e = new OverlayEntity(
-					'BOSS TIME!',
 					this.engine.canvas.width,
 					this.engine.canvas.height,
-					true,
 					{
 						Boss,
 						Grimey,

@@ -6,11 +6,9 @@ const continueKeys = [Keys.Space, Keys.Enter, Keys.Z, Keys.X];
 let screen_min, screen_max;
 export class OverlayEntity extends Entity {
 	fade = 0.0;
-	spawnBoss = false;
 
-	constructor(txt, w, h, spawnBoss, entities) {
+	constructor(w, h, entities) {
 		super(w / 2, h / 2);
-		this.spawnBoss = spawnBoss;
 		this.entities = entities;
 
 		this.graphic = new GraphicList();
@@ -20,7 +18,7 @@ export class OverlayEntity extends Entity {
 		this.bg.scrollX = 0.0;
 		this.graphic.add(this.bg);
 
-		this.txt = new Text(txt, 0, 0, {
+		this.txt = new Text('BOSS TIME! (pls fix me)', 0, 0, {
 			font: 'Skullboy',
 			size: 32,
 		});
@@ -35,41 +33,33 @@ export class OverlayEntity extends Entity {
 		if (this.fade > 1.0) {
 			this.fade = 1.0;
 
-			if (this.spawnBoss) {
-				screen_min = this.scene.room_start;
-				screen_max = this.scene.room_start + 400.0;
+			screen_min = this.scene.room_start;
+			screen_max = this.scene.room_start + 400.0;
 
-				const { Boss, Grimey } = this.entities;
+			const { Boss, Grimey } = this.entities;
 
-				const e = new Boss(
-					this.scene.room_start +
-						this.scene.engine.canvas.width * 0.5,
-					this.scene.engine.canvas.height * 0.5,
-					assetManager,
-				);
-				this.scene.addEntity(e);
-				this.scene.addRenderable(e);
+			const e = new Boss(
+				this.scene.room_start + this.scene.engine.canvas.width * 0.5,
+				this.scene.engine.canvas.height * 0.5,
+				assetManager,
+			);
+			this.scene.addEntity(e);
+			this.scene.addRenderable(e);
 
-				const n = this.scene.entities.inScene.length;
-				for (let i = 0; i < n; ++i) {
-					const e = this.scene.entities.inScene[i];
-					if (e instanceof Grimey) {
-						this.scene.removeRenderable(e);
-						this.scene.removeEntity(e);
-						e.scene = null;
-					}
-				}
-
-				// kill overlay
-				this.scene.removeRenderable(this);
-				this.scene.removeEntity(this);
-				this.scene = null;
-			} else {
-				if (input.keyPressed(continueKeys)) {
-					this.scene.engine.popScenes();
-					this.scene.engine.popScenes();
+			const n = this.scene.entities.inScene.length;
+			for (let i = 0; i < n; ++i) {
+				const e = this.scene.entities.inScene[i];
+				if (e instanceof Grimey) {
+					this.scene.removeRenderable(e);
+					this.scene.removeEntity(e);
+					e.scene = null;
 				}
 			}
+
+			// kill overlay
+			this.scene.removeRenderable(this);
+			this.scene.removeEntity(this);
+			this.scene = null;
 		}
 
 		this.bg.alpha = this.spawnBoss
