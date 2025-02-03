@@ -32,6 +32,7 @@ const defaultSettings = {
 	cameraInner: 40,
 	cameraOuter: 132,
 	cameraSpeed: 10,
+	enemyHealth: 6,
 };
 let localStorageSettings = {};
 if (window.debugEnabled) {
@@ -274,8 +275,8 @@ class CoolScreen extends Entity {
 	}
 }
 
+const invincibilityDuration = 30;
 class Character extends Entity {
-	hitFlash = false;
 	invFrames = 0;
 	health = 10;
 
@@ -315,10 +316,6 @@ class Character extends Entity {
 			this.graphic.originY = 0;
 			this.graphic.offsetY = 0;
 			this.graphic.y = -this.graphic.frameH;
-
-			this.graphic.add('idle', [0], 60);
-			this.graphic.add('walk', [0, 1, 2, 3], 20);
-			this.graphic.add('punch', [4, 5, 6], 8);
 		}
 
 		this.flipOffset = flipOffset;
@@ -346,8 +343,17 @@ class Character extends Entity {
 		} else {
 			this.health -= pts;
 		}
-		this.invFrames = 30;
+		this.invFrames = invincibilityDuration;
+		this.updateHitFlash();
 		return true;
+	}
+	
+	updateHitFlash() {
+		if (this.health <= 0) {
+			this.hitFlash = false;
+			return;
+		}
+		this.hitFlash = this.invFrames && (this.invFrames % 16 >= 8);
 	}
 
 	update(input) {
@@ -382,12 +388,14 @@ class Character extends Entity {
 			this.invFrames -= 1;
 		}
 
-		this.hitFlash = this.invFrames % 8 >= 4;
+		this.updateHitFlash();
 	}
 
 	render(ctx, camera) {
 		const drawX = this.x - camera.x;
 		const drawY = this.y - camera.y;
+		
+		Draw.text(ctx, { type: 'fill', color: 'white' }, drawX, drawY, this.invFrames.toString());
 
 		const r = 9;
 		const circleOptions = {
@@ -432,7 +440,9 @@ class Hitbox extends Entity {
 	}
 
 	update(input) {
-		if (this.time <= 10) {
+		this.collider.collidable = this.owner.graphic.frameId === 5;
+		
+		if (this.collider.collidable) {
 			const ents = this.collideEntities(this.x, this.y, [
 				COLLISION_TAG.CHAR,
 			]);
@@ -486,6 +496,10 @@ class Player extends Character {
 			tag: COLLISION_TAG.CHAR,
 			flipOffset: 10,
 		});
+		
+		this.graphic.add('idle', [0], 60);
+		this.graphic.add('walk', [0, 1, 2, 3], 20);
+		this.graphic.add('punch', [4, 5, 5, 6], 8, false);
 	}
 
 	onDeath() {
@@ -555,8 +569,9 @@ class Player extends Character {
 
 			if (input.keyPressed(Keys.Space)) {
 				let xx = this.x + (this.flip ? -40.0 : 20.0);
-
+				
 				let e = new Hitbox(this, 2, xx, this.y, this.flip ? -1.0 : 1.0);
+				e.collider.collidable = false;
 				this.scene.addEntity(e);
 				this.scene.addRenderable(e);
 				this.hitbox = e;
@@ -714,7 +729,7 @@ class Grimey extends Character {
 
 	constructor(x, y, assetManager) {
 		super(x, y, {
-			health: 6,
+			health: settings.enemyHealth,
 			asset: assetManager.sprites.get(ASSETS.BADGUY_PNG),
 			spriteW: 80,
 			spriteH: 80,
@@ -1227,20 +1242,7 @@ class Level extends Scene {
 					e.y - r - camera.y,
 					r,
 				);
-				switch (e.collider.type) {
-					case 'rect':
-						Draw.rect(
-							ctx,
-							{ type: 'stroke', color: 'red' },
-							e.x + e.collider.x - camera.x,
-							e.y + e.collider.y - camera.y,
-							e.collider.w,
-							e.collider.h,
-						);
-						break;
-					default:
-						console.warn('not supported');
-				}
+				e.renderCollider(ctx, camera);
 			});
 		}
 	}
