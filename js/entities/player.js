@@ -36,7 +36,14 @@ const keysD = [Keys.S, Keys.ArrowDown];
 const keysL = [Keys.A, Keys.ArrowLeft];
 const keysR = [Keys.D, Keys.ArrowRight];
 
-const states2anim = ['idle', 'walk', 'punch'];
+const CharacterState = {
+	idle: 0,
+	walk: 1,
+	punch: 2,
+	bubbleStart: 3,
+	bubbleThrow: 4,
+	death: 5,
+};
 
 export class Player extends Character {
 	flip = false;
@@ -57,23 +64,40 @@ export class Player extends Character {
 		});
 
 		this.ignoreCollisions = true;
+		this.currentState = 'idle';
 
 		this.graphic.add('idle', [0], 60);
 		this.graphic.add('walk', [0, 1, 2, 3], 20);
 		this.graphic.add('punch', [4, 5, 5, 5, 6], 8, false, () => {
-			this.postPunch();
+			this.postAttack();
+		});
+		this.graphic.add('bubbleStart', [12, 13], 8, false, () => {
+			this.postBubble();
+		});
+		this.graphic.add('bubbleThrow', [14], 15, false, () => {
+			this.postAttack();
 		});
 	}
 
-	postPunch() {
+	postBubble() {
+		let e = new BubbleTrap(
+			this.x + 35,
+			this.y,
+			this.flip ? -1.0 : 1.0,
+			assetManager,
+		);
+		this.scene.addEntity(e);
+		this.scene.addRenderable(e);
+
+		this.currentState = 'bubbleThrow';
+		this.graphic.play('bubbleThrow');
+	}
+	postAttack() {
+		this.currentState = 'idle';
 		this.graphic.play('idle');
 	}
 
 	update(input) {
-		if (this.over) {
-			return;
-		}
-
 		if (settings.invincible) this.health = this.maxHealth;
 
 		if (this.bubbles < 3) {
@@ -84,56 +108,52 @@ export class Player extends Character {
 			}
 		}
 
-		let walking = false;
-		let next_state = 0;
-		const punching = this.graphic?.currentAnimation?.name === 'punch';
-		if (!punching) {
-			const speed = settings.playerSpeed;
-			let moveVec = new Vec2(0, 0);
+		// Only allow actions if we're in "neutral" states
+		if (!(this.currentState == 'idle' || this.currentState == 'walk')) {
+			super.update(input);
+			return;
+		}
 
-			moveVec.x = +input.keyCheck(keysR) - +input.keyCheck(keysL);
-			moveVec.y = +input.keyCheck(keysD) - +input.keyCheck(keysU);
+		let nextState = 'idle';
+		const speed = settings.playerSpeed;
+		let moveVec = new Vec2(0, 0);
 
-			if (moveVec.magnitude > 0) {
-				moveVec = moveVec.scale(speed);
-				next_state = 1;
-				this.flip = moveVec.x ? moveVec.x < 0 : moveVec.y < 0;
-			}
+		moveVec.x = +input.keyCheck(keysR) - +input.keyCheck(keysL);
+		moveVec.y = +input.keyCheck(keysD) - +input.keyCheck(keysU);
 
-			this.x += speed * moveVec.x;
-			this.y += speed * moveVec.y;
-			// TODO(bret): uncomment this
-			// this.y = Math.clamp(this.y, minY, maxY);
+		if (moveVec.magnitude > 0) {
+			moveVec = moveVec.scale(speed);
+			this.flip = moveVec.x ? moveVec.x < 0 : moveVec.y < 0;
+			nextState = 'walk';
+		}
 
-			if (input.keyPressed(Keys.Z) && this.bubbles > 0) {
-				this.bubbles -= 1;
-				this.bubble_ticks = 0;
+		this.x += speed * moveVec.x;
+		this.y += speed * moveVec.y;
+		// TODO(bret): uncomment this
+		// this.y = Math.clamp(this.y, minY, maxY);
 
-				let e = new BubbleTrap(
-					this.x,
-					this.y,
-					this.flip ? -1.0 : 1.0,
-					assetManager,
-				);
-				this.scene.addEntity(e);
-				this.scene.addRenderable(e);
-			}
+		if (input.keyPressed(Keys.Z) && this.bubbles > 0) {
+			this.bubbles -= 1;
+			this.bubble_ticks = 0;
 
-			if (input.keyPressed(Keys.Space)) {
-				let xx = this.x + (this.flip ? -40.0 : 20.0);
+			nextState = 'bubbleStart';
+		}
 
-				let e = new Hitbox(this, 2, xx, this.y, this.flip ? -1.0 : 1.0);
-				e.collider.collidable = false;
-				this.scene.addEntity(e);
-				this.scene.addRenderable(e);
-				this.hitbox = e;
-				next_state = 2;
-			}
+		if (input.keyPressed(Keys.Space)) {
+			let xx = this.x + (this.flip ? -40.0 : 20.0);
 
-			if (this.animState !== next_state) {
-				this.graphic.play(states2anim[next_state]);
-				this.animState = next_state;
-			}
+			let e = new Hitbox(this, 2, xx, this.y, this.flip ? -1.0 : 1.0);
+			e.collider.collidable = false;
+			this.scene.addEntity(e);
+			this.scene.addRenderable(e);
+			this.hitbox = e;
+
+			nextState = 'punch';
+		}
+
+		if (this.currentState != nextState) {
+			this.graphic.play(nextState);
+			this.currentState = nextState;
 		}
 
 		super.update(input);

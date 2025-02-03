@@ -89,7 +89,7 @@ export class HUD extends Entity {
 		this.illuminate(this.healthFg, health, 1, 0);
 		this.illuminate(this.bubbles, bubbles, 1, 0.6);
 
-		if (this.player.invFrames) {
+		if (this.player.invFrames && this.healthFg[health]) {
 			this.healthFg[health].alpha = +(this.player.invFrames % 16 >= 8);
 			this.healthFg[health].color = 'white';
 		}
