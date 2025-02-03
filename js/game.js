@@ -19,26 +19,11 @@ import { Vec2 } from './canvas-lord/math/index.js';
 import { Random } from './canvas-lord/util/random.js';
 import { initDebug } from './debug.js';
 import { Menu, MenuOptions } from './menu.js';
-import { ASSETS } from './assets.js';
+import { assetManager, ASSETS, DEPTH, COLLISION_TAG, punch_sfx, settings, defaultSettings } from './assets.js';
+import { Character } from './entities/character.js';
+import { Player } from './entities/player.js';
+import { Hitbox } from './entities/hitbox.js';
 
-const defaultSettings = {
-	autoLevel: false,
-	showCamera: false,
-	showHitboxes: false,
-	invincible: false,
-	hideOverlay: false,
-	seed: undefined,
-	playerSpeed: 1,
-	cameraInner: 40,
-	cameraOuter: 132,
-	cameraSpeed: 10,
-	enemyHealth: 6,
-};
-let localStorageSettings = {};
-if (window.debugEnabled) {
-	localStorageSettings = JSON.parse(localStorage.getItem('settings')) ?? {};
-}
-const settings = Object.assign({}, defaultSettings, localStorageSettings);
 
 const minY = 200;
 const maxY = 380;
@@ -50,13 +35,6 @@ let screen_max = Infinity;
 
 let over = false;
 
-// delete old keys
-Object.keys(settings).forEach((key) => {
-	if (!(key in defaultSettings)) {
-		delete settings[key];
-	}
-});
-
 const loadFont = async (name, fileName) => {
 	const font = new FontFace(name, `url("${fileName}")`);
 	await font.load();
@@ -64,31 +42,6 @@ const loadFont = async (name, fileName) => {
 };
 await loadFont('Skullboy', './fonts/ChevyRay - Skullboy.ttf');
 await loadFont('Skullboy Mono', './fonts/ChevyRay - Skullboy Mono.ttf');
-
-const DEPTH = {
-	BACKGROUND: 1000,
-	SKYSCRAPERS: 100,
-	TILES: 10,
-	BUILDINGS: 9,
-	OVERLAY: -1000,
-	CAMERA: -Infinity,
-};
-
-const COLLISION_TAG = {
-	BUBBLE: 'BUBBLE',
-	CHAR: 'CHAR',
-	HITBOX: 'HITBOX',
-};
-
-const punch_sfx = [
-	ASSETS.THUD,
-	ASSETS.THUNK,
-	ASSETS.WHACK,
-	ASSETS.ACH,
-	ASSETS.OW,
-	ASSETS.UGH,
-	ASSETS.WUGH,
-];
 
 const tileStartY = minY - 10;
 
@@ -126,78 +79,6 @@ class Tiles extends Entity {
 		const asset = assetManager.sprites.get(ASSETS.FLOOR_PNG);
 		const limit = asset.width * 3;
 		this.x = Math.floor(this.scene.camera.x / limit) * limit;
-	}
-}
-
-class BubbleTrap extends Entity {
-	t = 0.0;
-	dir = 0.0;
-	baseline = 0.0;
-
-	constructor(x, y, dir) {
-		super(x, y);
-
-		this.graphic = new Sprite(
-			assetManager.sprites.get(ASSETS.BUBBLES2_PNG),
-		);
-		this.graphic.centerOrigin();
-		this.graphic.scale = 2.0;
-		this.baseline = y;
-		this.dir = dir;
-		this.depth = -y;
-		// TODO(bret): CircleCollider?
-		// yes i moved it slightly down on purpose
-		this.collider = new BoxCollider(40, 40, -20, -20);
-		this.collider.tag = COLLISION_TAG.BUBBLE;
-	}
-
-	update(input) {
-		this.t += 10.0 / 60.0;
-
-		this.x += this.dir * 1.5;
-		this.graphic.y = Math.sin(this.t * 0.5) * 8.0 - 50.0;
-
-		let view_x = this.x - this.scene.camera.x;
-		if (view_x < 0.0 || view_x >= this.scene.engine.canvas.width) {
-			if (this.caught) {
-				this.caught.bubble = null;
-				this.caught.graphic.y = -80.0;
-				this.caught.graphic.scale = 1.0;
-			}
-
-			Sfx.play(assetManager.audio.get(ASSETS.POP));
-
-			this.scene.removeRenderable(this);
-			this.scene.removeEntity(this);
-			this.scene = null;
-			return;
-		}
-
-		if (!this.caught) {
-			// if an enemy gets caught by a bubble we wanna drag them with it
-			const e = this.collideEntity(this.x, this.y, [COLLISION_TAG.CHAR]);
-			if (e !== null && e !== this.owner && !e.bubble) {
-				if (e instanceof Boss) {
-					e.animState = -1;
-					e.dx = 20.0 * this.dir;
-					e.hurt(1);
-					e.graphic.play('stunned');
-					this.caught = e;
-
-					Sfx.play(assetManager.audio.get(ASSETS.POP));
-					this.scene.removeRenderable(this);
-					this.scene.removeEntity(this);
-					this.scene = null;
-				} else if (e instanceof Grimey) {
-					e.bubble = this;
-					e.hurt(1);
-					e.animState = -1;
-					e.graphic.scale = 0.4;
-					e.graphic.play('stuck');
-					this.caught = e;
-				}
-			}
-		}
 	}
 }
 
@@ -275,364 +156,7 @@ class CoolScreen extends Entity {
 	}
 }
 
-const invincibilityDuration = 30;
-class Character extends Entity {
-	invFrames = 0;
-	health = 10;
-
-	animState = 0;
-	hitbox = null;
-
-	dx = 0;
-	dy = 0;
-
-	flipOffset = 0;
-	friction = 0.5;
-
-	constructor(
-		x,
-		y,
-		{ health, asset, spriteW, spriteH, width, height, tag, flipOffset },
-	) {
-		super(x, y);
-
-		this.maxHealth = health;
-		this.health = this.maxHealth;
-
-		if (width && height) {
-			// TODO(bret): CircleCollider? (or maybe Ellipsis??)
-			this.collider = new BoxCollider(
-				width,
-				height,
-				-width * 0.5,
-				-height * 0.5 - 10,
-			);
-			this.collider.tag = tag ?? COLLISION_TAG.CHAR;
-		}
-
-		if (asset) {
-			this.graphic = new AnimatedSprite(asset, spriteW, spriteH);
-			this.graphic.centerOO();
-			this.graphic.originY = 0;
-			this.graphic.offsetY = 0;
-			this.graphic.y = -this.graphic.frameH;
-		}
-
-		this.flipOffset = flipOffset;
-	}
-
-	updateGraphic() {
-		this.graphic.scaleX = this.flip ? -1.0 : 1.0;
-		this.graphic.x = this.flip ? -this.flipOffset : this.flipOffset;
-	}
-
-	onDeath() {
-		this.scene.removeRenderable(this);
-		this.scene.removeEntity(this);
-		this.scene = null;
-	}
-
-	hurt(pts) {
-		if (this.invFrames > 0) {
-			return false;
-		}
-
-		if (this.health <= pts) {
-			this.health = 0;
-			this.onDeath();
-		} else {
-			this.health -= pts;
-		}
-		this.invFrames = invincibilityDuration;
-		this.updateHitFlash();
-		return true;
-	}
-	
-	updateHitFlash() {
-		if (this.health <= 0) {
-			this.hitFlash = false;
-			return;
-		}
-		this.hitFlash = this.invFrames && (this.invFrames % 16 >= 8);
-	}
-
-	update(input) {
-		super.update(input);
-
-		if (this.scene === null) {
-			return; // we just died
-		}
-
-		// friction
-		this.dx -= this.dx * this.friction;
-		this.dy -= this.dy * this.friction;
-
-		if (!(this instanceof Player)) {
-			this.x += this.collide(this.x + this.dx, this.y, COLLISION_TAG.CHAR)
-				? 0.0
-				: this.dx;
-			this.y += this.collide(this.x, this.y + this.dy, COLLISION_TAG.CHAR)
-				? 0.0
-				: this.dy;
-		} else {
-			this.x += this.dx;
-			this.y += this.dy;
-		}
-		this.x = Math.clamp(this.x, screen_min - 100.0, screen_max + 20.0);
-		this.y = Math.clamp(this.y, minY, maxY);
-
-		this.depth = -this.y;
-		this.updateGraphic();
-
-		if (this.invFrames > 0) {
-			this.invFrames -= 1;
-		}
-
-		this.updateHitFlash();
-	}
-
-	render(ctx, camera) {
-		const drawX = this.x - camera.x;
-		const drawY = this.y - camera.y;
-		
-		Draw.text(ctx, { type: 'fill', color: 'white' }, drawX, drawY, this.invFrames.toString());
-
-		const r = 9;
-		const circleOptions = {
-			type: 'fill',
-			color: '#00000033',
-			radius: r,
-			scaleX: 2,
-		};
-		Draw.circle(ctx, circleOptions, drawX - r * 2, drawY - r, r);
-		Draw.circle(
-			ctx,
-			{
-				...circleOptions,
-				color: '#ffffff22',
-				type: 'stroke',
-			},
-			drawX - r * 2,
-			drawY - r,
-			r,
-		);
-
-		this.graphic.color = this.hitFlash ? 'white' : undefined;
-		super.render(ctx, camera);
-	}
-}
-
-class Hitbox extends Entity {
-	time = 0;
-	owner = null;
-	dmg = 0;
-	dir = 0;
-
-	constructor(o, d, x, y, dir) {
-		super(x, y);
-		this.dir = dir;
-		this.dmg = d;
-		this.owner = o;
-		this.collider = new BoxCollider(20, 60, 0, -30);
-		this.collider.tag = COLLISION_TAG.HITBOX;
-		this.hasCollided = false;
-	}
-
-	update(input) {
-		this.collider.collidable = this.owner.graphic.frameId === 5;
-		
-		if (this.collider.collidable) {
-			this.hasCollided = true;
-			
-			const ents = this.collideEntities(this.x, this.y, [
-				COLLISION_TAG.CHAR,
-			]);
-			ents.forEach((e) => {
-				if (e !== null && e !== this.owner && e instanceof Character) {
-					if (e.hurt(this.dmg)) {
-						if (e.health === 0) {
-							e.dx = 30.0 * this.dir;
-							e.friction = 0.2;
-						}
-
-						const asset = assetManager.audio.get(
-							random.choose(punch_sfx),
-						);
-						Sfx.play(asset);
-					}
-				}
-			});
-		} else if (this.hasCollided) {
-			if (this.owner.hitbox === this)
-				this.owner.hitbox = null;
-			this.scene.removeEntity(this);
-			this.scene.removeRenderable(this);
-		}
-	}
-}
-
-const keysU = [Keys.W, Keys.ArrowUp];
-const keysD = [Keys.S, Keys.ArrowDown];
-const keysL = [Keys.A, Keys.ArrowLeft];
-const keysR = [Keys.D, Keys.ArrowRight];
-
 const states2anim = ['idle', 'walk', 'punch'];
-
-class Player extends Character {
-	flip = false;
-
-	bubble_ticks = 0;
-	bubbles = 3;
-
-	constructor(x, y, assetManager) {
-		super(x, y, {
-			health: 10,
-			asset: assetManager.sprites.get(ASSETS.MRCLEAN_PNG),
-			spriteW: 80,
-			spriteH: 80,
-			width: 20,
-			height: 20,
-			tag: COLLISION_TAG.CHAR,
-			flipOffset: 10,
-		});
-		
-		this.graphic.add('idle', [0], 60);
-		this.graphic.add('walk', [0, 1, 2, 3], 20);
-		this.graphic.add('punch', [4, 5, 5, 5, 6], 8, false, () => {
-			this.postPunch();
-		});
-	}
-	
-	postPunch() {
-		this.graphic.play('idle');
-	}
-
-	onDeath() {
-		if (!over) {
-			let e = new CoolScreen(
-				'GAME OVER!',
-				this.scene.engine.canvas.width,
-				this.scene.engine.canvas.height,
-				false,
-			);
-			this.scene.addEntity(e);
-			this.scene.addRenderable(e);
-
-			over = true;
-		}
-
-		super.onDeath();
-	}
-
-	update(input) {
-		if (this.over) {
-			return;
-		}
-
-		if (settings.invincible) this.health = this.maxHealth;
-
-		if (this.bubbles < 3) {
-			this.bubble_ticks += 1;
-			if (this.bubble_ticks > 120) {
-				this.bubbles += 1;
-				this.bubble_ticks = 0;
-			}
-		}
-
-		let walking = false;
-		let next_state = 0;
-		const punching = this.graphic?.currentAnimation?.name === 'punch';
-		if (!punching) {
-			const speed = settings.playerSpeed;
-			let moveVec = new Vec2(0, 0);
-
-			moveVec.x = +input.keyCheck(keysR) - +input.keyCheck(keysL);
-			moveVec.y = +input.keyCheck(keysD) - +input.keyCheck(keysU);
-
-			if (moveVec.magnitude > 0) {
-				moveVec = moveVec.scale(speed);
-				next_state = 1;
-				this.flip = moveVec.x ? moveVec.x < 0 : moveVec.y < 0;
-			}
-
-			this.x += speed * moveVec.x;
-			this.y += speed * moveVec.y;
-			this.y = Math.clamp(this.y, minY, maxY);
-
-			if (input.keyPressed(Keys.Z) && this.bubbles > 0) {
-				this.bubbles -= 1;
-				this.bubble_ticks = 0;
-
-				let e = new BubbleTrap(this.x, this.y, this.flip ? -1.0 : 1.0);
-				this.scene.addEntity(e);
-				this.scene.addRenderable(e);
-			}
-
-			if (input.keyPressed(Keys.Space)) {
-				let xx = this.x + (this.flip ? -40.0 : 20.0);
-				
-				let e = new Hitbox(this, 2, xx, this.y, this.flip ? -1.0 : 1.0);
-				e.collider.collidable = false;
-				this.scene.addEntity(e);
-				this.scene.addRenderable(e);
-				this.hitbox = e;
-				next_state = 2;
-			}
-
-			if (this.animState !== next_state) {
-				this.graphic.play(states2anim[next_state]);
-				this.animState = next_state;
-			}
-		}
-
-		super.update(input);
-	}
-
-	render(ctx, camera) {
-		// this.graphic.x = -(this.y - minY);
-		this.graphic.x = this.flip ? -10 : 10;
-
-		super.render(ctx, camera);
-
-		const rectOptions = {
-			type: 'fill',
-			angle: 0.0,
-			scaleX: 1.0,
-			scaleY: 1.0,
-			originX: 0.0,
-			originY: 0.0,
-			offsetX: 0.0,
-			offsetY: 0.0,
-		};
-
-		rectOptions.color = 'red';
-		Draw.rect(ctx, rectOptions, 8.0, 8.0, (this.health / 10) * 100.0, 16.0);
-		rectOptions.color = 'black';
-		Draw.rect(
-			ctx,
-			rectOptions,
-			8.0 + (this.health / 10) * 100.0,
-			8.0,
-			(1.0 - this.health / 10) * 100.0,
-			16.0,
-		);
-
-		const imageOptions = {
-			angle: 0.0,
-			scaleX: 1.0,
-			scaleY: 1.0,
-			originX: 0,
-			originY: 0,
-			offsetX: 0,
-			offsetY: 0,
-			imageSrc: assetManager.sprites.get(ASSETS.BUBBLES2_PNG).image,
-		};
-
-		for (let i = 0; i < this.bubbles; i++) {
-			Draw.image(ctx, imageOptions, 8.0 + i * 32.0, 32.0);
-		}
-	}
-}
 
 class Boss extends Character {
 	constructor(x, y, assetManager) {
@@ -768,7 +292,7 @@ class Grimey extends Character {
 			return;
 		} else if (over) {
 			return;
-		} else if (this.bubble !== null) {
+		} else if (this.bubble) {
 			this.x = this.bubble.x;
 			this.y = this.bubble.y;
 			this.graphic.x = 0.0;
@@ -1250,7 +774,6 @@ class Level extends Scene {
 }
 
 let game;
-const assetManager = new AssetManager('./img/');
 Object.values(ASSETS).forEach((asset) => {
 	switch (true) {
 		case asset.endsWith('.png'):
@@ -1271,6 +794,7 @@ assetManager.onLoad(() => {
 			updateMode: 'focus', // or set it to 'focus'
 			renderMode: 'onUpdate',
 		},
+		assetManager,
 		devMode: window.debugEnabled,
 	});
 	game.assetManager = assetManager;
