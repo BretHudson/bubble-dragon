@@ -51,7 +51,7 @@ export class Player extends Character {
 	bubble_ticks = 0;
 	bubbles = 3;
 
-	constructor(x, y, assetManager) {
+	constructor(x, y, assetManager, enemyDirector) {
 		super(x, y, {
 			health: 10,
 			asset: assetManager.sprites.get(ASSETS.MRCLEAN_PNG),
@@ -61,7 +61,11 @@ export class Player extends Character {
 			height: 20,
 			tag: COLLISION_TAG.CHAR,
 			flipOffset: 10,
+			enemyDirector,
 		});
+
+		this.enemyDirector.player = this;
+		this.enemyDirector.unregister(this); // don't care about the player lol
 
 		this.ignoreCollisions = true;
 		this.currentState = 'idle';

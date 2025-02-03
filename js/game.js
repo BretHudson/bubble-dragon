@@ -16,6 +16,7 @@ import {
 	GraphicList,
 } from './canvas-lord/graphic/index.js';
 import { Vec2 } from './canvas-lord/math/index.js';
+import { cardinalNorms } from './canvas-lord/math/misc.js';
 import { Random } from './canvas-lord/util/random.js';
 import { initDebug } from './debug.js';
 import { Menu, MenuOptions } from './menu.js';
@@ -172,7 +173,7 @@ class Boss extends Character {
 class Grimey extends Character {
 	death_fade = 0.0;
 
-	constructor(x, y, assetManager) {
+	constructor(x, y, assetManager, enemyDirector) {
 		super(x, y, {
 			health: settings.enemyHealth,
 			asset: assetManager.sprites.get(ASSETS.BADGUY_PNG),
@@ -182,6 +183,7 @@ class Grimey extends Character {
 			height: 20,
 			tag: COLLISION_TAG.CHAR,
 			flipOffset: 10,
+			enemyDirector,
 		});
 
 		this.graphic.add('idle', [0], 60);
@@ -227,14 +229,33 @@ class Grimey extends Character {
 			return;
 		}
 
+		if (this.target) {
+			const pos = new Vec2(this.x, this.y);
+			let delta = this.target.pos.sub(pos);
+			if (delta.magnitude > 1) {
+				delta.normalize();
+			}
+			// delta = delta.scale(0.5);
+			this.dx = delta.x;
+			this.dy = delta.y;
+
+			// TODO(bret): revisit
+			this.flip = this.dx <= 0;
+		}
+
+		super.update(input);
+
+		return;
+
 		const punching = this.graphic?.currentAnimation?.name === 'punch';
-		if (!punching) {
-			let xx = this.scene.player.x - this.x;
-			let yy = this.scene.player.y - this.y;
+		if (!punching && this.target) {
+			// TODO(bret): Update it so the target is relative to the player
+			let xx = this.scene.player.x + this.target.x - this.x;
+			let yy = this.scene.player.y + this.target.y - this.y;
 			let dist = Math.max(Math.abs(xx), Math.abs(yy));
 
 			let next_state = 0;
-			if (dist > 45.0) {
+			if (dist > 0) {
 				const speed = 0.5;
 				let dx = Math.sign(this.scene.player.x - this.x) * speed;
 				let dy = Math.sign(this.scene.player.y - this.y) * speed;
@@ -554,6 +575,111 @@ class PauseScreen extends Scene {
 	}
 }
 
+const dist = 60;
+const offsets = cardinalNorms.map(([x, y]) => {
+	const xx = y ? x * dist : x * dist * 1.2;
+	return new Vec2(xx, y * dist);
+});
+
+class EnemyDirector extends Entity {
+	constructor() {
+		super();
+
+		this.offsets = offsets.map((_, index) => ({
+			index,
+			pos: new Vec2(),
+			enemy: null,
+		}));
+
+		this.depth = -Infinity;
+
+		this.enemies = [];
+	}
+
+	updateOffsets() {
+		const playerPos = new Vec2(this.player.x, this.player.y);
+		for (let i = 0; i < offsets.length; ++i) {
+			this.offsets[i].pos = offsets[i].add(playerPos);
+		}
+	}
+
+	register(character) {
+		if (character === this.player) return;
+
+		this.enemies.push(character);
+	}
+
+	unregister(character) {
+		const target = this.offsets.find(({ enemy }) => enemy === character);
+		if (target) {
+			character.target = null;
+			target.enemy = null;
+		}
+
+		const index = this.enemies.indexOf(character);
+		console.log(index, character);
+		if (index > -1) {
+			this.enemies.splice(index, 1);
+		}
+	}
+
+	update() {
+		this.updateOffsets();
+
+		const availableOffsets = this.offsets.filter(({ enemy }) => !enemy);
+
+		this.enemies.forEach((enemy) => {
+			if (enemy.target) return;
+
+			// TODO(bret): Update available offsets!
+			if (availableOffsets.length > 0) {
+				// otherwise let's find a target
+				const enemyPos = new Vec2(enemy.x, enemy.y);
+
+				const positions = availableOffsets.map(
+					({ pos }) => pos.sub(enemyPos).magnitude,
+				);
+
+				let minDist = Infinity;
+				let minIndex;
+				for (let i = 0; i < positions.length; ++i) {
+					if (positions[i] < minDist) {
+						minDist = positions[i];
+						minIndex = i;
+					}
+				}
+
+				enemy.target = availableOffsets[minIndex];
+				availableOffsets[minIndex].enemy = enemy;
+				availableOffsets.splice(minIndex, 1);
+			}
+		});
+	}
+
+	render(ctx, camera) {
+		const drawX = -camera.x;
+		const drawY = -camera.y;
+
+		this.offsets.forEach(({ pos, enemy }, index) => {
+			const { x, y } = pos;
+			Draw.circle(
+				ctx,
+				{ type: 'fill', color: enemy ? 'lime' : 'yellow' },
+				drawX + x,
+				drawY + y,
+				3,
+			);
+			Draw.text(
+				ctx,
+				{ type: 'fill', color: 'white' },
+				drawX + x,
+				drawY + y + 10,
+				index.toString(),
+			);
+		});
+	}
+}
+
 class Level extends Scene {
 	constructor(engine) {
 		super(engine);
@@ -561,7 +687,16 @@ class Level extends Scene {
 		const canvasSize = new Vec2(engine.canvas.width, engine.canvas.height);
 		const canvasCenter = canvasSize.scale(0.5);
 
-		const p = new Player(canvasCenter.x, centerY, assetManager);
+		const enemyDirector = new EnemyDirector();
+		this.addEntity(enemyDirector);
+		this.addRenderable(enemyDirector);
+
+		const p = new Player(
+			canvasCenter.x,
+			centerY,
+			assetManager,
+			enemyDirector,
+		);
 		this.player = p;
 
 		const cameraManager = new CameraManager(this.player);
@@ -600,6 +735,33 @@ class Level extends Scene {
 			this.addEntity(e);
 			this.addRenderable(e);
 		});
+
+		// temp grimeys
+		{
+			const w = this.engine.canvas.width;
+			const positions = [
+				//
+				[100, minY],
+				[0, centerY],
+				[100, maxY],
+
+				[w - 100, minY],
+				[w - 0, centerY],
+				[w - 100, maxY],
+				[w - 50, minY],
+			];
+
+			for (let i = 0; i < positions.length; ++i) {
+				const e = new Grimey(
+					...positions[i],
+					assetManager,
+					enemyDirector,
+				);
+
+				this.addEntity(e);
+				this.addRenderable(e);
+			}
+		}
 
 		const hud = new HUD(this.player);
 		this.addEntity(hud);
@@ -661,27 +823,24 @@ class Level extends Scene {
 				this.addEntity(e);
 				this.addRenderable(e);
 			} else {
-				this.room_start += this.rooms[this.furthest_room++];
-				if (this.furthest_room === this.rooms.length - 1) {
-					screen_max =
-						this.room_start + this.rooms[this.furthest_room];
-				}
-
-				const n = random.int(3) + 2;
-				console.log('Spawning ' + n + ' grimeys');
-
-				for (let i = 0; i < n; i++) {
-					const e = new Grimey(
-						this.room_start +
-							game.canvas.width * 0.5 +
-							random.int(4) * 35.0,
-						game.canvas.height - (i * 30.0 + 20.0),
-						assetManager,
-					);
-
-					this.addEntity(e);
-					this.addRenderable(e);
-				}
+				// this.room_start += this.rooms[this.furthest_room++];
+				// if (this.furthest_room === this.rooms.length - 1) {
+				// 	screen_max =
+				// 		this.room_start + this.rooms[this.furthest_room];
+				// }
+				// const n = random.int(3) + 2;
+				// console.log('Spawning ' + n + ' grimeys');
+				// for (let i = 0; i < n; i++) {
+				// 	const e = new Grimey(
+				// 		this.room_start +
+				// 			game.canvas.width * 0.5 +
+				// 			random.int(4) * 35.0,
+				// 		game.canvas.height - (i * 30.0 + 20.0),
+				// 		assetManager,
+				// 	);
+				// 	this.addEntity(e);
+				// 	this.addRenderable(e);
+				// }
 			}
 		}
 	}
