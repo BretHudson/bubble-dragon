@@ -505,6 +505,10 @@ export class Menu extends Scene {
 	animScale = 0;
 
 	update(input) {
+		// check to see if the credits have been opened/closed this frame
+		// so we don't immediately revert the state in the below input.keyPressed check
+		const creditsOpen = this.creditsOpen;
+
 		super.update(input);
 
 		this.gen.next().value;
@@ -525,7 +529,7 @@ export class Menu extends Scene {
 			this.bubble.graphic.scale = scale * 8;
 		}
 
-		if (this.creditsOpen) {
+		if (this.creditsOpen && creditsOpen === this.creditsOpen) {
 			if (input.keyPressed(Keys.Escape, Keys.Enter, Keys.Space)) {
 				this.creditsOpen = false;
 			}

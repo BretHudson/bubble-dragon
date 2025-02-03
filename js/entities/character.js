@@ -74,6 +74,10 @@ export class Character extends Entity {
 		this.flipOffset = flipOffset;
 	}
 
+	get isDead() {
+		return this.health <= 0;
+	}
+
 	updateGraphic() {
 		this.graphic.scaleX = this.flip ? -1.0 : 1.0;
 		this.graphic.x = this.flip ? -this.flipOffset : this.flipOffset;

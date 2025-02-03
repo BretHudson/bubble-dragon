@@ -97,10 +97,6 @@ export class Player extends Character {
 		this.graphic.play('idle');
 	}
 
-	onDeath() {
-		super.onDeath();
-	}
-
 	update(input) {
 		if (settings.invincible) this.health = this.maxHealth;
 

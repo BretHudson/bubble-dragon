@@ -33,6 +33,8 @@ import { Player } from './entities/player.js';
 import { Hitbox } from './entities/hitbox.js';
 import { HUD } from './entities/hud.js';
 
+import { OverlayEntity, ResultsScene } from './scenes/results-scene.js';
+
 const minY = 200;
 const maxY = 380;
 const centerY = (maxY - minY) / 2 + minY;
@@ -40,8 +42,6 @@ const random = new Random(settings.seed);
 
 let screen_min = 0.0;
 let screen_max = Infinity;
-
-let over = false;
 
 const loadFont = async (name, fileName) => {
 	const font = new FontFace(name, `url("${fileName}")`);
@@ -90,80 +90,6 @@ class Tiles extends Entity {
 	}
 }
 
-class CoolScreen extends Entity {
-	fade = 0.0;
-	boss_txt = false;
-
-	constructor(txt, w, h, boss_txt) {
-		super(w / 2, h / 2);
-		this.boss_txt = boss_txt;
-
-		this.graphic = new GraphicList();
-
-		this.bg = Sprite.createRect(w, h, 'black');
-		this.bg.centerOrigin();
-		this.bg.scrollX = 0.0;
-		this.graphic.add(this.bg);
-
-		this.txt = new Text(txt, 0, 0, {
-			font: 'Skullboy',
-			size: 32,
-		});
-		this.txt.scrollX = 0.0;
-		this.txt.centerOrigin();
-		this.graphic.add(this.txt);
-		this.depth = DEPTH.OVERLAY;
-	}
-
-	update(input) {
-		this.fade += 1.0 / 60.0;
-		if (this.fade > 1.0) {
-			this.fade = 1.0;
-
-			if (this.boss_txt) {
-				screen_min = this.scene.room_start;
-				screen_max = this.scene.room_start + 400.0;
-
-				const e = new Boss(
-					this.scene.room_start +
-						this.scene.engine.canvas.width * 0.5,
-					this.scene.engine.canvas.height * 0.5,
-					assetManager,
-				);
-				this.scene.addEntity(e);
-				this.scene.addRenderable(e);
-
-				const n = this.scene.entities.inScene.length;
-				for (let i = 0; i < n; ++i) {
-					const e = this.scene.entities.inScene[i];
-					if (e instanceof Grimey) {
-						this.scene.removeRenderable(e);
-						this.scene.removeEntity(e);
-						e.scene = null;
-					}
-				}
-
-				// kill overlay
-				this.scene.removeRenderable(this);
-				this.scene.removeEntity(this);
-				this.scene = null;
-			} else {
-				if (input.keyPressed(pauseKeys)) {
-					this.scene.engine.popScenes();
-				}
-			}
-		}
-
-		if (this.boss_txt) {
-			this.bg.alpha = Math.sin(this.fade * Math.PI) * 0.5 + 0.5;
-		} else {
-			this.bg.alpha = this.fade;
-		}
-
-		this.visible = !settings.hideOverlay;
-	}
-}
-
 const states2anim = ['idle', 'walk', 'punch'];
 
 class Boss extends Character {
@@ -193,23 +119,6 @@ class Boss extends Character {
 	postPunch() {
 		this.graphic.play('idle');
 		this.animState = -1;
-	}
-
-	onDeath() {
-		if (!over) {
-			let e = new CoolScreen(
-				'YOU WON!',
-				this.scene.engine.canvas.width,
-				this.scene.engine.canvas.height,
-				false,
-			);
-			this.scene.addEntity(e);
-			this.scene.addRenderable(e);
-
-			over = true;
-		}
-
-		super.onDeath();
 	}
 
 	update(input) {
@@ -299,10 +208,6 @@ class Grimey extends Character {
 	}
 
 	update(input) {
-		if (over) {
-			return;
-		}
-
 		if (this.health === 0) {
 			if (this.graphic.frame === 2) {
 				this.death_fade += 0.33 / 60.0;
@@ -652,7 +557,6 @@ class PauseScreen extends Scene {
 class Level extends Scene {
 	constructor(engine) {
 		super(engine);
-		over = false;
 
 		const canvasSize = new Vec2(engine.canvas.width, engine.canvas.height);
 		const canvasCenter = canvasSize.scale(0.5);
@@ -714,9 +618,6 @@ class Level extends Scene {
 	}
 
 	pauseGame() {
-		// TODO(bret): might want to revisit this
-		if (over) return;
-
 		this.engine.pushScene(new PauseScreen(this.engine));
 	}
 
@@ -725,6 +626,18 @@ class Level extends Scene {
 
 		if (input.keyPressed(pauseKeys)) {
 			this.pauseGame();
+		}
+
+		if (this.player.isDead) {
+			this.engine.pushScene(
+				new ResultsScene(this.engine, 'Game Over', false),
+			);
+		}
+
+		if (this.boss?.isDead) {
+			this.engine.pushScene(
+				new ResultsScene(this.engine, 'Game Complete', false),
+			);
 		}
 
 		const dist = this.player.x - this.room_start;
@@ -737,11 +650,13 @@ class Level extends Scene {
 				screen_min = this.room_start;
 				screen_max = this.room_start + this.engine.canvas.width;
 
-				const e = new CoolScreen(
-					'BOSS TIME!',
+				const e = new OverlayEntity(
 					this.engine.canvas.width,
 					this.engine.canvas.height,
-					true,
+					{
+						Boss,
+						Grimey,
+					},
 				);
 				this.addEntity(e);
 				this.addRenderable(e);
