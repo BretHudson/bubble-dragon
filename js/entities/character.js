@@ -1,32 +1,7 @@
-import {
-	AssetManager,
-	Sfx,
-	Game,
-	Scene,
-	Entity,
-	Draw,
-	Tileset,
-} from '../canvas-lord/canvas-lord.js';
+import { Entity, Draw } from '../canvas-lord/canvas-lord.js';
 import { BoxCollider } from '../canvas-lord/collider/index.js';
-import { Keys } from '../canvas-lord/core/input.js';
-import {
-	Text,
-	Sprite,
-	AnimatedSprite,
-	GraphicList,
-} from '../canvas-lord/graphic/index.js';
-import { Vec2 } from '../canvas-lord/math/index.js';
-import { Random } from '../canvas-lord/util/random.js';
-import { initDebug } from '../debug.js';
-import { Menu, MenuOptions } from '../menu.js';
-import {
-	assetManager,
-	ASSETS,
-	DEPTH,
-	COLLISION_TAG,
-	punch_sfx,
-	settings,
-} from '../assets.js';
+import { AnimatedSprite } from '../canvas-lord/graphic/index.js';
+import { COLLISION_TAG } from '../assets.js';
 
 const invincibilityDuration = 30;
 export class Character extends Entity {
@@ -42,10 +17,10 @@ export class Character extends Entity {
 	flipOffset = 0;
 	friction = 0.5;
 
-	constructor(
-		x,
-		y,
-		{
+	constructor(x, y, options) {
+		super(x, y);
+
+		const {
 			health,
 			asset,
 			spriteW,
@@ -56,9 +31,8 @@ export class Character extends Entity {
 			flipOffset,
 			points,
 			enemyDirector,
-		},
-	) {
-		super(x, y);
+			callback,
+		} = options;
 
 		this.points = points;
 
@@ -80,7 +54,12 @@ export class Character extends Entity {
 		}
 
 		if (asset) {
-			this.graphic = new AnimatedSprite(asset, spriteW, spriteH);
+			this.graphic = new AnimatedSprite(
+				asset,
+				spriteW,
+				spriteH,
+				callback,
+			);
 			this.graphic.centerOO();
 			this.graphic.originY = 0;
 			this.graphic.offsetY = 0;

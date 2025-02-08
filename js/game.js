@@ -1,5 +1,4 @@
 import {
-	AssetManager,
 	Sfx,
 	Game,
 	Scene,
@@ -7,7 +6,6 @@ import {
 	Draw,
 	Tileset,
 } from './canvas-lord/canvas-lord.js';
-import { BoxCollider } from './canvas-lord/collider/index.js';
 import { Keys } from './canvas-lord/core/input.js';
 import {
 	Text,
@@ -25,7 +23,6 @@ import {
 	ASSETS,
 	DEPTH,
 	COLLISION_TAG,
-	punch_sfx,
 	settings,
 	defaultSettings,
 } from './assets.js';
@@ -95,6 +92,14 @@ const states2anim = ['idle', 'walk', 'punch'];
 
 class Boss extends Character {
 	constructor(x, y, assetManager) {
+		const callback = (name) => {
+			switch (name) {
+				case 'punch':
+					this.postPunch();
+					break;
+			}
+		};
+
 		super(x, y, {
 			health: 20,
 			asset: assetManager.sprites.get(ASSETS.GRIMEBOSS_PNG),
@@ -104,13 +109,12 @@ class Boss extends Character {
 			height: 40,
 			tag: COLLISION_TAG.CHAR,
 			flipOffset: 10,
+			callback,
 		});
 
 		this.graphic.add('idle', [0], 60);
 		this.graphic.add('walk', [0, 1, 2, 3], 20);
-		this.graphic.add('punch', [6, 7, 8], 8, false, () => {
-			this.postPunch();
-		});
+		this.graphic.add('punch', [6, 7, 8], 8, false);
 		this.graphic.add('death', [18, 19, 20], 60, false);
 		this.graphic.add('stunned', [19], 30, false);
 
@@ -149,7 +153,6 @@ class Boss extends Character {
 
 				let e = new Hitbox(this, 1, xx, this.y, this.flip ? -1.0 : 1.0);
 				this.scene.addEntity(e);
-				this.scene.addRenderable(e);
 				this.hitbox = e;
 				next_state = 2;
 			}
@@ -174,6 +177,14 @@ class Grimey extends Character {
 	death_fade = 0.0;
 
 	constructor(x, y, assetManager, enemyDirector) {
+		const callback = (name) => {
+			switch (name) {
+				case 'punch':
+					this.postPunch();
+					break;
+			}
+		};
+
 		super(x, y, {
 			health: settings.enemyHealth,
 			asset: assetManager.sprites.get(ASSETS.BADGUY_PNG),
@@ -185,13 +196,12 @@ class Grimey extends Character {
 			flipOffset: 10,
 			points: 1,
 			enemyDirector,
+			callback,
 		});
 
 		this.graphic.add('idle', [0], 60);
 		this.graphic.add('walk', [0, 1, 2, 3], 20);
-		this.graphic.add('punch', [4, 5, 5, 6], 8, false, () => {
-			this.postPunch();
-		});
+		this.graphic.add('punch', [4, 5, 5, 6], 8, false);
 		this.graphic.add('death', [12, 13, 14], 60, false);
 		this.graphic.add('stuck', [14], 60, false);
 	}
@@ -278,7 +288,6 @@ class Grimey extends Character {
 
 				let e = new Hitbox(this, 1, xx, this.y, this.flip ? -1.0 : 1.0);
 				this.scene.addEntity(e);
-				this.scene.addRenderable(e);
 				this.hitbox = e;
 				next_state = 2;
 			}
@@ -541,7 +550,6 @@ class PauseScreen extends Scene {
 		const rectEntity = new Entity();
 		rectEntity.graphic = rect;
 		this.addEntity(rectEntity);
-		this.addRenderable(rectEntity);
 
 		const yPad = 20;
 
@@ -551,7 +559,6 @@ class PauseScreen extends Scene {
 		textEntity.y -= yPad * 2;
 		textEntity.graphic = text;
 		this.addEntity(textEntity);
-		this.addRenderable(textEntity);
 
 		const options = new MenuOptions(width >> 1, height >> 1, [
 			{
@@ -572,7 +579,6 @@ class PauseScreen extends Scene {
 		]);
 		options.y += yPad;
 		this.addEntity(options);
-		this.addRenderable(options);
 	}
 }
 
@@ -709,12 +715,13 @@ class Level extends Scene {
 	constructor(engine) {
 		super(engine);
 
+		this.backgroundColor = '#101010';
+
 		const canvasSize = new Vec2(engine.canvas.width, engine.canvas.height);
 		const canvasCenter = canvasSize.scale(0.5);
 
 		const enemyDirector = new EnemyDirector();
 		this.addEntity(enemyDirector);
-		this.addRenderable(enemyDirector);
 
 		const p = new Player(
 			canvasCenter.x,
@@ -747,19 +754,13 @@ class Level extends Scene {
 		entities[2].graphic.scrollX = 0.025;
 
 		for (let i = 0; i < 5; ++i) {
-			const skyscrapers = new Skyscrapers(i);
-			this.addEntity(skyscrapers);
-			this.addRenderable(skyscrapers);
+			this.addEntity(new Skyscrapers(i));
 		}
 
 		const buildings = new Buildings();
 		this.addEntity(buildings);
-		this.addRenderable(buildings);
 
-		[...entities, tiles, p, cameraManager].forEach((e) => {
-			this.addEntity(e);
-			this.addRenderable(e);
-		});
+		this.addEntities(...entities, tiles, p, cameraManager);
 
 		// temp grimeys
 		{
@@ -777,20 +778,14 @@ class Level extends Scene {
 			];
 
 			for (let i = 0; i < positions.length; ++i) {
-				const e = new Grimey(
-					...positions[i],
-					assetManager,
-					enemyDirector,
+				this.addEntity(
+					new Grimey(...positions[i], assetManager, enemyDirector),
 				);
-
-				this.addEntity(e);
-				this.addRenderable(e);
 			}
 		}
 
 		const hud = new HUD(this.player);
 		this.addEntity(hud);
-		this.addRenderable(hud);
 
 		// a lil' cheat for making the camera immediately snap
 		for (let i = 0; i < 100; ++i) cameraManager.update({});
@@ -846,7 +841,6 @@ class Level extends Scene {
 					},
 				);
 				this.addEntity(e);
-				this.addRenderable(e);
 			} else {
 				// this.room_start += this.rooms[this.furthest_room++];
 				// if (this.furthest_room === this.rooms.length - 1) {
@@ -864,7 +858,6 @@ class Level extends Scene {
 				// 		assetManager,
 				// 	);
 				// 	this.addEntity(e);
-				// 	this.addRenderable(e);
 				// }
 			}
 		}
