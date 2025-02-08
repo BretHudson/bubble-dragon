@@ -1,7 +1,8 @@
-/* Canvas Lord v0.5.1 */
+/* Canvas Lord v0.5.3 */
 import { Graphic } from './graphic.js';
 import { Sprite } from './sprite.js';
 import { Vec2 } from '../math/index.js';
+import { generateCanvasAndCtx } from '../util/canvas.js';
 import { Draw } from '../util/draw.js';
 import { Random } from '../util/random.js';
 export class Emitter extends Graphic {
@@ -9,6 +10,7 @@ export class Emitter extends Graphic {
     #types = new Map();
     // TODO(bret): remove the seed
     random = new Random(2378495);
+    // TODO(bret): Ensure we want both of these to be able to be OffscreenCanvases
     imageSrc = null;
     blendCanvas;
     // get imageSrc(): HTMLImageElement {
@@ -22,7 +24,10 @@ export class Emitter extends Graphic {
             asset = asset.asset;
         }
         this.asset = asset;
-        this.blendCanvas = document.createElement('canvas');
+        const { canvas } = generateCanvasAndCtx();
+        if (!canvas)
+            throw new Error();
+        this.blendCanvas = canvas;
     }
     newType(name, frames) {
         this.#types.set(name, { frames, particles: [] });
@@ -58,10 +63,7 @@ export class Emitter extends Graphic {
         const type = this.getType(name);
         let ctx = type.color?.ctx ?? null;
         if (!type.color) {
-            const canvas = document.createElement('canvas');
-            canvas.width = resolution;
-            canvas.height = 1;
-            ctx = canvas.getContext('2d');
+            ({ ctx } = generateCanvasAndCtx(resolution, 1));
         }
         if (!ctx)
             throw new Error();

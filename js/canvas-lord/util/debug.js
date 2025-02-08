@@ -1,4 +1,4 @@
-/* Canvas Lord v0.5.1 */
+/* Canvas Lord v0.5.3 */
 import { Vec2 } from '../math/index.js';
 import { Camera } from './camera.js';
 import { Draw } from './draw.js';
@@ -158,7 +158,6 @@ export class Debug {
             };
             if (highlightRect) {
                 tempSprite.alpha = 0.5;
-                // @ts-expect-error
                 tempSprite.render(this.hiddenCtx);
                 // Draw full-alpha rect
                 this.hiddenCtx.globalCompositeOperation = 'destination-out';
@@ -173,7 +172,6 @@ export class Debug {
             tempSprite.sourceW = rect.w;
             tempSprite.sourceH = rect.h;
             tempSprite.alpha = 1.0;
-            // @ts-expect-error
             tempSprite.render(this.hiddenCtx, Vec2.zero);
             const lineW = 3;
             const lineP = lineW + 1;
