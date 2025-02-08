@@ -1,4 +1,4 @@
-/* Canvas Lord v0.5.1 */
+/* Canvas Lord v0.5.3 */
 // TODO(bret): Rounded rectangle https://stackoverflow.com/questions/1255512/how-to-draw-a-rounded-rectangle-on-html-canvas
 export const drawable = {
     angle: 0,
@@ -16,6 +16,7 @@ let tempCtx;
 const initTempCanvas = (ctx) => {
     if (tempCanvas)
         return;
+    // NOTE(bret): Do NOT make this an OffscreenCanvas, it will be slow!!
     tempCanvas = document.createElement('canvas');
     tempCanvas.width = ctx.canvas.width;
     tempCanvas.height = ctx.canvas.height;

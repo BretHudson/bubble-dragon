@@ -1,4 +1,4 @@
-/* Canvas Lord v0.5.1 */
+/* Canvas Lord v0.5.3 */
 export const EPSILON = 0.000001;
 // Math prototype fun :~)
 if (typeof Math.clamp === 'undefined') {
@@ -52,9 +52,6 @@ export class Vec2 extends Array {
     }
     static normalize(v) {
         const mag = v.magnitude;
-		if (mag < EPSILON) {
-			console.warn('you have been warned');
-		}
         v.x /= mag;
         v.y /= mag;
     }

@@ -1,32 +1,6 @@
-import {
-	AssetManager,
-	Sfx,
-	Game,
-	Scene,
-	Entity,
-	Draw,
-	Tileset,
-} from '../canvas-lord/canvas-lord.js';
-import { BoxCollider } from '../canvas-lord/collider/index.js';
 import { Keys } from '../canvas-lord/core/input.js';
-import {
-	Text,
-	Sprite,
-	AnimatedSprite,
-	GraphicList,
-} from '../canvas-lord/graphic/index.js';
 import { Vec2 } from '../canvas-lord/math/index.js';
-import { Random } from '../canvas-lord/util/random.js';
-import { initDebug } from '../debug.js';
-import { Menu, MenuOptions } from '../menu.js';
-import {
-	assetManager,
-	ASSETS,
-	DEPTH,
-	COLLISION_TAG,
-	punch_sfx,
-	settings,
-} from '../assets.js';
+import { assetManager, ASSETS, COLLISION_TAG, settings } from '../assets.js';
 import { Character } from './character.js';
 import { Hitbox } from './hitbox.js';
 import { BubbleTrap } from './bubble-trap.js';
@@ -52,6 +26,20 @@ export class Player extends Character {
 	bubbles = 3;
 
 	constructor(x, y, assetManager, enemyDirector) {
+		const callback = (name) => {
+			switch (name) {
+				case 'punch':
+					this.postAttack();
+					break;
+				case 'bubbleStart':
+					this.postBubble();
+					break;
+				case 'bubbleThrow':
+					this.postAttack();
+					break;
+			}
+		};
+
 		super(x, y, {
 			health: 10,
 			asset: assetManager.sprites.get(ASSETS.MRCLEAN_PNG),
@@ -63,6 +51,7 @@ export class Player extends Character {
 			flipOffset: 10,
 			points: -1,
 			enemyDirector,
+			callback,
 		});
 
 		this.enemyDirector.player = this;
@@ -72,15 +61,9 @@ export class Player extends Character {
 
 		this.graphic.add('idle', [0], 60);
 		this.graphic.add('walk', [0, 1, 2, 3], 20);
-		this.graphic.add('punch', [4, 5, 5, 5, 6], 8, false, () => {
-			this.postAttack();
-		});
-		this.graphic.add('bubbleStart', [12, 13], 8, false, () => {
-			this.postBubble();
-		});
-		this.graphic.add('bubbleThrow', [14], 15, false, () => {
-			this.postAttack();
-		});
+		this.graphic.add('punch', [4, 5, 5, 5, 6], 8, false);
+		this.graphic.add('bubbleStart', [12, 13], 8, false);
+		this.graphic.add('bubbleThrow', [14], 15, false);
 	}
 
 	postBubble() {
@@ -91,7 +74,6 @@ export class Player extends Character {
 			assetManager,
 		);
 		this.scene.addEntity(e);
-		this.scene.addRenderable(e);
 
 		this.currentState = 'bubbleThrow';
 		this.graphic.play('bubbleThrow');
@@ -149,7 +131,6 @@ export class Player extends Character {
 			let e = new Hitbox(this, 2, xx, this.y, this.flip ? -1.0 : 1.0);
 			e.collider.collidable = false;
 			this.scene.addEntity(e);
-			this.scene.addRenderable(e);
 			this.hitbox = e;
 
 			nextState = 'punch';

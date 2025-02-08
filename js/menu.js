@@ -387,7 +387,6 @@ export class Menu extends Scene {
 			const x = creditX[i];
 			const entity = new MenuCredit(x, creditY, name, roles[i], 3 - i);
 			this.addEntity(entity);
-			this.addRenderable(entity);
 			entity.setTime(0);
 			return entity;
 		});
@@ -427,7 +426,6 @@ export class Menu extends Scene {
 		);
 		this.options = options;
 		this.addEntity(options);
-		this.addRenderable(options);
 
 		[
 			['Move', 'Arrow keys'],
@@ -485,10 +483,7 @@ export class Menu extends Scene {
 			assetManager.sprites.get(ASSETS.BUBBLES2_PNG),
 		);
 		this.bubble = bubble;
-		[mrClean, grimey, bubble].forEach((e) => {
-			this.addEntity(e);
-			this.addRenderable(e);
-		});
+		this.addEntities(mrClean, grimey, bubble);
 		this.gen = logoAnimation(mrClean, logo, grimey, bubble, assetManager);
 	}
 
@@ -562,13 +557,5 @@ export class Menu extends Scene {
 		const text = new Text(str, 0, 0, { font, size });
 		text.centerOO();
 		return this.addGraphic(text, x, y);
-	}
-
-	addGraphic(graphic, x, y) {
-		const entity = new Entity(x, y);
-		entity.graphic = graphic;
-		this.addEntity(entity);
-		this.addRenderable(entity);
-		return entity;
 	}
 }

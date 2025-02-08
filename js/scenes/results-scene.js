@@ -45,7 +45,6 @@ export class OverlayEntity extends Entity {
 			);
 			this.scene.boss = boss;
 			this.scene.addEntity(boss);
-			this.scene.addRenderable(boss);
 
 			const n = this.scene.entities.inScene.length;
 			for (let i = 0; i < n; ++i) {
@@ -92,13 +91,6 @@ export class ResultsScene extends Scene {
 		this.addGraphic(this.txt);
 
 		this.bg.alpha = 0;
-	}
-
-	addGraphic(gfx) {
-		const e = new Entity();
-		e.graphic = gfx;
-		this.addEntity(e);
-		this.addRenderable(e);
 	}
 
 	update(input) {

@@ -1,4 +1,4 @@
-/* Canvas Lord v0.5.1 */
+/* Canvas Lord v0.5.3 */
 export class AssetManager {
     constructor(prefix = '') {
         this.sprites = new Map();
@@ -106,8 +106,15 @@ export class AssetManager {
     }
 }
 export class Sfx {
-    static audioCtx = new AudioContext();
+    static #audioCtx;
+    static get audioCtx() {
+        Sfx.#audioCtx ??= new AudioContext();
+        return Sfx.#audioCtx;
+    }
     static music = new Map();
+    static resetAudioCtx() {
+        Sfx.#audioCtx = new AudioContext();
+    }
     static play(audio) {
         const source = Sfx.audioCtx.createBufferSource();
         source.buffer = audio.buffer;
