@@ -52,6 +52,9 @@ export class Vec2 extends Array {
     }
     static normalize(v) {
         const mag = v.magnitude;
+		if (mag < EPSILON) {
+			console.warn('you have been warned');
+		}
         v.x /= mag;
         v.y /= mag;
     }

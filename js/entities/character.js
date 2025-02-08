@@ -45,12 +45,28 @@ export class Character extends Entity {
 	constructor(
 		x,
 		y,
-		{ health, asset, spriteW, spriteH, width, height, tag, flipOffset },
+		{
+			health,
+			asset,
+			spriteW,
+			spriteH,
+			width,
+			height,
+			tag,
+			flipOffset,
+			points,
+			enemyDirector,
+		},
 	) {
 		super(x, y);
 
+		this.points = points;
+
 		this.maxHealth = health;
 		this.health = this.maxHealth;
+
+		this.enemyDirector = enemyDirector;
+		this.enemyDirector.register(this);
 
 		if (width && height) {
 			// TODO(bret): CircleCollider? (or maybe Ellipsis??)
@@ -87,6 +103,8 @@ export class Character extends Entity {
 		this.scene.removeRenderable(this);
 		this.scene.removeEntity(this);
 		this.scene = null;
+
+		this.enemyDirector.unregister(this);
 	}
 
 	hurt(pts) {
